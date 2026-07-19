@@ -50,7 +50,7 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: [self-hosted, hackclub]
+    runs-on: [self-hosted, hackclub-personal]
     environment: production
     permissions:
       contents: read
@@ -84,6 +84,10 @@ jobs:
           ls -la /home/deployer/hub
           test -f /home/deployer/hub/docker-compose.yml
 
+      - name: Lowercase image name
+        run: |
+          echo "APP_IMAGE_NAME_LOWER=ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')/app" >> $GITHUB_ENV
+
       - name: Write production .env
         working-directory: /home/deployer/hub
         env:
@@ -95,7 +99,7 @@ jobs:
           ARGON2_SECRET_KEY: ${{ secrets.ARGON2_SECRET_KEY }}
           NODE_AUTH_SECRET: ${{ secrets.NODE_AUTH_SECRET }}
 
-          APP_IMAGE_NAME: ghcr.io/${{ github.repository }}/app
+          APP_IMAGE_NAME: ${{ env.APP_IMAGE_NAME_LOWER }}
           APP_EXTERNAL_PORT: ${{ vars.APP_EXTERNAL_PORT || '8082' }}
           GRPC_EXTERNAL_PORT: ${{ vars.GRPC_EXTERNAL_PORT || '35051' }}
           POSTGRES_EXTERNAL_PORT: ${{ vars.POSTGRES_EXTERNAL_PORT || '35432' }}
