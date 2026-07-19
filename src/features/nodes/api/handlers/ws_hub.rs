@@ -28,17 +28,30 @@ async fn handle_socket(socket: WebSocket, state: crate::common::app::state::AppS
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
     // 1. Read first message to authenticate connection
-    let first_msg = match ws_receiver.next().await {
-        Some(Ok(Message::Text(text))) => match serde_json::from_str::<NodeMessage>(&text) {
-            Ok(msg) => msg,
-            Err(e) => {
-                tracing::warn!(error = %e, "Invalid JSON in first message");
+    let first_msg = loop {
+        match ws_receiver.next().await {
+            Some(Ok(Message::Text(text))) => match serde_json::from_str::<NodeMessage>(&text) {
+                Ok(msg) => break msg,
+                Err(e) => {
+                    tracing::warn!(error = %e, "Invalid JSON in first message");
+                    return;
+                }
+            },
+            Some(Ok(Message::Ping(_))) => {}
+            Some(Ok(Message::Pong(_))) => {}
+            Some(Ok(Message::Close(_))) => {
+                tracing::warn!("Connection closed by client during auth");
                 return;
             }
-        },
-        _ => {
-            tracing::warn!("Connection closed or invalid first message type");
-            return;
+            Some(Ok(_)) => {}
+            Some(Err(e)) => {
+                tracing::warn!(error = %e, "Error reading first message");
+                return;
+            }
+            None => {
+                tracing::warn!("Connection closed before receiving first message");
+                return;
+            }
         }
     };
 
