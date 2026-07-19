@@ -3,6 +3,10 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use utoipa::{
+    openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    OpenApi,
+};
 
 use crate::{
     common::http::{dto::ApiResponse, error::AppError},
@@ -15,6 +19,37 @@ use crate::{
         queries::get_active_nodes::GetActiveNodesQuery,
     },
 };
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        get_active_nodes,
+        add_user_to_node,
+        remove_user_from_node,
+    ),
+    components(schemas(NodeDto)),
+    tags(
+        (name = "Nodes", description = "VPN Node management endpoints")
+    ),
+    modifiers(&NodesApiDoc)
+)]
+pub struct NodesApiDoc;
+
+impl utoipa::Modify for NodesApiDoc {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.as_mut().unwrap();
+        components.add_security_scheme(
+            "bearer_auth",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .description(Some("Input your `<your-jwt>`"))
+                    .build(),
+            ),
+        )
+    }
+}
 
 pub fn router(
     state: crate::common::app::state::AppState,
@@ -29,6 +64,13 @@ pub fn router(
         .with_state(state)
 }
 
+#[utoipa::path(
+    get,
+    path = "/nodes/active",
+    responses((status = 200, description = "Get list of active nodes", body = [NodeDto])),
+    tag = "Nodes",
+    security(("bearer_auth" = []))
+)]
 async fn get_active_nodes(
     State(state): State<crate::common::app::state::AppState>,
 ) -> Result<Json<ApiResponse<Vec<NodeDto>>>, AppError> {
@@ -38,6 +80,17 @@ async fn get_active_nodes(
     Ok(Json(ApiResponse::success(dtos)))
 }
 
+#[utoipa::path(
+    post,
+    path = "/nodes/{node_id}/users/{user_uuid}",
+    params(
+        ("node_id" = String, Path, description = "Node ID"),
+        ("user_uuid" = String, Path, description = "User UUID")
+    ),
+    responses((status = 200, description = "User added to node successfully")),
+    tag = "Nodes",
+    security(("bearer_auth" = []))
+)]
 async fn add_user_to_node(
     State(state): State<crate::common::app::state::AppState>,
     Path((node_id, user_uuid)): Path<(String, String)>,
@@ -47,6 +100,17 @@ async fn add_user_to_node(
     Ok(Json(ApiResponse::success(())))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/nodes/{node_id}/users/{user_uuid}",
+    params(
+        ("node_id" = String, Path, description = "Node ID"),
+        ("user_uuid" = String, Path, description = "User UUID")
+    ),
+    responses((status = 200, description = "User removed from node successfully")),
+    tag = "Nodes",
+    security(("bearer_auth" = []))
+)]
 async fn remove_user_from_node(
     State(state): State<crate::common::app::state::AppState>,
     Path((node_id, user_uuid)): Path<(String, String)>,
