@@ -11,6 +11,7 @@ RUN apt-get update \
         ca-certificates \
         libssl-dev \
         pkg-config \
+        protobuf-compiler \
         && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
