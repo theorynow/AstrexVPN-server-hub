@@ -33,7 +33,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/terrasoftwareteam/hub/app
+          images: ghcr.io/${{ github.repository }}/app
           tags: |
             type=sha,format=short
 
@@ -95,6 +95,7 @@ jobs:
           ARGON2_SECRET_KEY: ${{ secrets.ARGON2_SECRET_KEY }}
           NODE_AUTH_SECRET: ${{ secrets.NODE_AUTH_SECRET }}
 
+          APP_IMAGE_NAME: ghcr.io/${{ github.repository }}/app
           APP_EXTERNAL_PORT: ${{ vars.APP_EXTERNAL_PORT || '8082' }}
           GRPC_EXTERNAL_PORT: ${{ vars.GRPC_EXTERNAL_PORT || '35051' }}
           POSTGRES_EXTERNAL_PORT: ${{ vars.POSTGRES_EXTERNAL_PORT || '35432' }}
@@ -119,6 +120,7 @@ jobs:
 
           # Writing to a file
           cat > .env <<EOF
+          APP_IMAGE_NAME=${APP_IMAGE_NAME}
           APP_IMAGE_TAG=sha-${SHORT_SHA}
 
           JWT_SECRET_KEY=${JWT_SECRET_KEY}

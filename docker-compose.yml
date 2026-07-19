@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/terrasoftwareteam/hub/app:${APP_IMAGE_TAG:-latest}
+    image: ${APP_IMAGE_NAME:-ghcr.io/theorynow/hub/app}:${APP_IMAGE_TAG:-latest}
     container_name: hub-app
     restart: unless-stopped
     environment:
