@@ -113,7 +113,7 @@ async fn handle_socket(socket: WebSocket, state: crate::common::app::state::AppS
     tracing::info!(node_id = %node_id, public_ip = %public_ip, "Node WebSocket connected successfully");
 
     // 3. Run concurrent loops to process incoming/outgoing messages
-    let report_traffic_cmd = Arc::new(ReportTrafficCommand::new());
+    let report_traffic_cmd = Arc::new(ReportTrafficCommand::new(state.pool.clone()));
     let node_id_clone = node_id.clone();
     let node_commander = state.nodes.node_commander.clone();
 

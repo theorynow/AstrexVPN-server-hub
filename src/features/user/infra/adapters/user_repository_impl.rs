@@ -22,6 +22,8 @@ const FIND_USER_QUERY: &str = r#"
     SELECT
         u.id::text AS id,
         u.username,
+        u.traffic_limit_bytes,
+        u.traffic_used_bytes,
         u.created_at,
         u.modified_at
     FROM users u
@@ -32,6 +34,8 @@ const FIND_USER_INFO_QUERY: &str = r#"
     SELECT
         u.id::text AS id,
         u.username,
+        u.traffic_limit_bytes,
+        u.traffic_used_bytes,
         u.created_at,
         u.modified_at
     FROM users u
@@ -42,6 +46,8 @@ const FIND_USER_INFO_QUERY: &str = r#"
 struct UserRow {
     id: String,
     username: Option<String>,
+    traffic_limit_bytes: i64,
+    traffic_used_bytes: i64,
     created_at: Option<DateTime<Utc>>,
     modified_at: Option<DateTime<Utc>>,
 }
@@ -51,6 +57,8 @@ impl From<UserRow> for User {
         Self {
             id: row.id,
             username: row.username,
+            traffic_limit_bytes: row.traffic_limit_bytes,
+            traffic_used_bytes: row.traffic_used_bytes,
             created_at: row.created_at,
             modified_at: row.modified_at,
         }
@@ -128,6 +136,8 @@ impl UserRepository for UserRepositoryImpl {
             RETURNING
                 id::text AS id,
                 username,
+                traffic_limit_bytes,
+                traffic_used_bytes,
                 created_at,
                 modified_at
             "#,
