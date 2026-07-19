@@ -1,0 +1,158 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/terrasoftwareteam/hub/app
+          tags: |
+            type=sha,format=short
+
+      - name: Build and push x86_64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: [self-hosted, hackclub]
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare deploy directory
+        run: |
+          mkdir -p /home/deployer/hub
+          test -f docker-compose.yml
+
+      - name: Sync deploy files
+        run: |
+          cp docker-compose.yml /home/deployer/hub/docker-compose.yml
+
+          if [ -d migrations ]; then
+            rm -rf /home/deployer/hub/migrations
+            cp -r migrations /home/deployer/hub/migrations
+          fi
+
+          if [ -d observability ]; then
+            rm -rf /home/deployer/hub/observability
+            cp -r observability /home/deployer/hub/observability
+          fi
+
+      - name: Debug deploy directory
+        run: |
+          ls -la /home/deployer/hub
+          test -f /home/deployer/hub/docker-compose.yml
+
+      - name: Write production .env
+        working-directory: /home/deployer/hub
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          HMAC_SECRET_KEY: ${{ secrets.HMAC_SECRET_KEY }}
+          ARGON2_SECRET_KEY: ${{ secrets.ARGON2_SECRET_KEY }}
+          NODE_AUTH_SECRET: ${{ secrets.NODE_AUTH_SECRET }}
+
+          APP_EXTERNAL_PORT: ${{ vars.APP_EXTERNAL_PORT || '8082' }}
+          GRPC_EXTERNAL_PORT: ${{ vars.GRPC_EXTERNAL_PORT || '35051' }}
+          POSTGRES_EXTERNAL_PORT: ${{ vars.POSTGRES_EXTERNAL_PORT || '35432' }}
+          DATABASE_MAX_CONNECTIONS: ${{ vars.DATABASE_MAX_CONNECTIONS || '5' }}
+          DATABASE_MIN_CONNECTIONS: ${{ vars.DATABASE_MIN_CONNECTIONS || '1' }}
+          RUST_LOG: ${{ vars.RUST_LOG || 'info,sqlx=info,tower_http=info,axum::rejection=trace,opentelemetry=info' }}
+          GF_ADMIN_USER: ${{ vars.GF_ADMIN_USER || 'admin' }}
+          GF_ADMIN_PASSWORD: ${{ secrets.GF_ADMIN_PASSWORD }}
+          GRAFANA_EXTERNAL_PORT: ${{ vars.GRAFANA_EXTERNAL_PORT || '33000' }}
+        run: |
+          # Verification of Required Secrets
+          : "${POSTGRES_USER:?POSTGRES_USER secret is required}"
+          : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD secret is required}"
+          : "${POSTGRES_DB:?POSTGRES_DB secret is required}"
+          : "${JWT_SECRET_KEY:?JWT_SECRET_KEY secret is required}"
+          : "${HMAC_SECRET_KEY:?HMAC_SECRET_KEY secret is required}"
+          : "${ARGON2_SECRET_KEY:?ARGON2_SECRET_KEY secret is required}"
+          : "${NODE_AUTH_SECRET:?NODE_AUTH_SECRET secret is required}"
+          : "${GF_ADMIN_PASSWORD:?GF_ADMIN_PASSWORD secret is required}"
+
+          SHORT_SHA="$(echo "$GITHUB_SHA" | cut -c1-7)"
+
+          # Writing to a file
+          cat > .env <<EOF
+          APP_IMAGE_TAG=sha-${SHORT_SHA}
+
+          JWT_SECRET_KEY=${JWT_SECRET_KEY}
+          HMAC_SECRET_KEY=${HMAC_SECRET_KEY}
+          ARGON2_SECRET_KEY=${ARGON2_SECRET_KEY}
+          NODE_AUTH_SECRET=${NODE_AUTH_SECRET}
+
+          APP_EXTERNAL_PORT=${APP_EXTERNAL_PORT}
+          GRPC_EXTERNAL_PORT=${GRPC_EXTERNAL_PORT}
+          POSTGRES_EXTERNAL_PORT=${POSTGRES_EXTERNAL_PORT}
+
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_DB=${POSTGRES_DB}
+          DATABASE_MAX_CONNECTIONS=${DATABASE_MAX_CONNECTIONS}
+          DATABASE_MIN_CONNECTIONS=${DATABASE_MIN_CONNECTIONS}
+
+          RUST_LOG=${RUST_LOG}
+
+          OTEL_EXPORTER_OTLP_ENDPOINT=http://otelcol:4318
+          OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+
+          GF_ADMIN_USER=${GF_ADMIN_USER}
+          GF_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD}
+          GRAFANA_EXTERNAL_PORT=${GRAFANA_EXTERNAL_PORT}
+          EOF
+
+          chmod 600 .env
+
+      - name: Login to GHCR with GITHUB_TOKEN
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull new image
+        run: docker compose -f /home/deployer/hub/docker-compose.yml pull
+
+      - name: Restart app
+        run: docker compose -f /home/deployer/hub/docker-compose.yml up -d
