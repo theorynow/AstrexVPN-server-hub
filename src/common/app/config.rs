@@ -18,7 +18,6 @@ pub struct Config {
 
     pub service_host: String,
     pub service_port: String,
-    pub grpc_port: u16,
 
     pub admin_user_ids: Vec<String>,
 
@@ -48,7 +47,6 @@ impl Config {
 
             service_host: required_env("SERVICE_HOST")?,
             service_port: required_env("SERVICE_PORT")?,
-            grpc_port: optional_u32_env("GRPC_PORT", 50051) as u16,
 
             admin_user_ids: env::var("ADMIN_USER_IDS")
                 .unwrap_or_default()
@@ -69,7 +67,6 @@ impl Config {
         info!(
             service_host = %config.service_host,
             service_port = %config.service_port,
-            grpc_port = config.grpc_port,
             database = %config.database_log_label(),
             database_max_connections = config.database_max_connections,
             database_min_connections = config.database_min_connections,

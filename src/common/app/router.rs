@@ -25,7 +25,11 @@ use crate::{
         http::error::{handle_error, AppError},
         security::jwt,
     },
-    features::{auth::user_auth_routes, user::user_routes},
+    features::{
+        auth::user_auth_routes,
+        nodes::{node_routes, ws_routes},
+        user::user_routes,
+    },
 };
 
 use once_cell::sync::Lazy;
@@ -58,10 +62,7 @@ pub fn create_router(state: AppState) -> Router {
     // Protected API routes
     let protected_routes = Router::new()
         .nest("/user", user_routes())
-        .nest(
-            "/nodes",
-            crate::features::nodes::api::handlers::http_routes::router(state.clone()),
-        )
+        .nest("/nodes", node_routes())
         // enforce JWT authentication
         .route_layer(middleware::from_fn_with_state(state.clone(), jwt::jwt_auth))
         // attach inspecter
@@ -116,6 +117,7 @@ pub fn create_router(state: AppState) -> Router {
     // Create the main router
     Router::new()
         .route("/health", axum::routing::get(health_check))
+        .merge(ws_routes())
         .merge(api_routes)
         .fallback(fallback)
         .layer(middleware_stack)

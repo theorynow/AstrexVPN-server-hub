@@ -13,9 +13,7 @@ use crate::features::auth::{
 };
 use crate::features::nodes::{
     domain::ports::node_repository::NodeRepository,
-    infra::adapters::{
-        grpc_commander_impl::GrpcCommanderImpl, pg_node_repository::PgNodeRepository,
-    },
+    infra::adapters::{pg_node_repository::PgNodeRepository, ws_commander_impl::WsCommanderImpl},
 };
 use crate::features::user::{
     GetMeQuery, GetUserByIdQuery, GetUserListQuery, GetUsersQuery, UpdateMeCommand, UserRepository,
@@ -91,8 +89,8 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
     );
 
     let nodes_repo: Arc<dyn NodeRepository> = Arc::new(PgNodeRepository::new(pool.clone()));
-    let grpc_commander = Arc::new(GrpcCommanderImpl::new());
-    let nodes_state = NodesState::new(nodes_repo, grpc_commander);
+    let node_commander = Arc::new(WsCommanderImpl::new());
+    let nodes_state = NodesState::new(nodes_repo, node_commander);
 
     let state = AppState::new(config, pool.clone(), auth_state, user_state, nodes_state);
 

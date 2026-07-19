@@ -1,4 +1,4 @@
-use crate::features::nodes::api::grpc_codegen::vpn::infrastructure::TrafficReport;
+use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct ReportTrafficCommand;
@@ -8,9 +8,9 @@ impl ReportTrafficCommand {
         Self
     }
 
-    pub async fn execute(&self, node_id: &str, report: TrafficReport) {
+    pub async fn execute(&self, node_id: &str, user_bytes: HashMap<String, u64>) {
         // Increment bandwidth or log stats
-        for (user_uuid, bytes) in report.user_bytes {
+        for (user_uuid, bytes) in user_bytes {
             tracing::info!(
                 node_id = %node_id,
                 user_uuid = %user_uuid,

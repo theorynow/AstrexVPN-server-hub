@@ -1,11 +1,7 @@
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::features::{
-    auth::UserAuthApiDoc,
-    user::UserApiDoc,
-    nodes::api::handlers::http_routes::NodesApiDoc,
-};
+use crate::features::{auth::UserAuthApiDoc, nodes::NodesApiDoc, user::UserApiDoc};
 
 pub fn create_swagger_ui() -> SwaggerUi {
     SwaggerUi::new("/docs")

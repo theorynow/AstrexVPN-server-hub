@@ -1,7 +1,6 @@
 use axum::{
     extract::{Path, State},
-    routing::{get, post},
-    Json, Router,
+    Json,
 };
 use utoipa::{
     openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
@@ -29,7 +28,7 @@ use crate::{
     ),
     components(schemas(NodeDto)),
     tags(
-        (name = "Nodes", description = "VPN Node management endpoints")
+        (name = "Nodes", description = "VPN Node management endpoints. Note: WebSocket agent connection is at /ws/node")
     ),
     modifiers(&NodesApiDoc)
 )]
@@ -51,19 +50,6 @@ impl utoipa::Modify for NodesApiDoc {
     }
 }
 
-pub fn router(
-    state: crate::common::app::state::AppState,
-) -> Router<crate::common::app::state::AppState> {
-    Router::new()
-        .route("/active", get(get_active_nodes))
-        .route("/{node_id}/users/{user_uuid}", post(add_user_to_node))
-        .route(
-            "/{node_id}/users/{user_uuid}",
-            axum::routing::delete(remove_user_from_node),
-        )
-        .with_state(state)
-}
-
 #[utoipa::path(
     get,
     path = "/nodes/active",
@@ -71,7 +57,7 @@ pub fn router(
     tag = "Nodes",
     security(("bearer_auth" = []))
 )]
-async fn get_active_nodes(
+pub(crate) async fn get_active_nodes(
     State(state): State<crate::common::app::state::AppState>,
 ) -> Result<Json<ApiResponse<Vec<NodeDto>>>, AppError> {
     let query = GetActiveNodesQuery::new(state.nodes.node_repository.clone());
@@ -91,11 +77,11 @@ async fn get_active_nodes(
     tag = "Nodes",
     security(("bearer_auth" = []))
 )]
-async fn add_user_to_node(
+pub(crate) async fn add_user_to_node(
     State(state): State<crate::common::app::state::AppState>,
     Path((node_id, user_uuid)): Path<(String, String)>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let cmd = AddUserToNodeCommand::new(state.nodes.grpc_commander.clone());
+    let cmd = AddUserToNodeCommand::new(state.nodes.node_commander.clone());
     cmd.execute(&node_id, &user_uuid).await?;
     Ok(Json(ApiResponse::success(())))
 }
@@ -111,11 +97,11 @@ async fn add_user_to_node(
     tag = "Nodes",
     security(("bearer_auth" = []))
 )]
-async fn remove_user_from_node(
+pub(crate) async fn remove_user_from_node(
     State(state): State<crate::common::app::state::AppState>,
     Path((node_id, user_uuid)): Path<(String, String)>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let cmd = RemoveUserFromNodeCommand::new(state.nodes.grpc_commander.clone());
+    let cmd = RemoveUserFromNodeCommand::new(state.nodes.node_commander.clone());
     cmd.execute(&node_id, &user_uuid).await?;
     Ok(Json(ApiResponse::success(())))
 }

@@ -5,31 +5,29 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::features::nodes::{
-    api::grpc_codegen::vpn::infrastructure::{
-        hub_command, AddUser, CommandResult, HubCommand, RemoveUser,
-    },
-    domain::ports::node_commander::{CommanderError, NodeCommander},
+    api::dto::HubMessage,
+    domain::ports::node_commander::{CommandResult, CommanderError, NodeCommander},
 };
 
 #[derive(Clone)]
 pub struct ActiveNodeConnection {
-    sender: mpsc::Sender<Result<HubCommand, tonic::Status>>,
+    sender: mpsc::Sender<HubMessage>,
     inbound_tags: Vec<String>,
 }
 
 #[derive(Clone)]
-pub struct GrpcCommanderImpl {
+pub struct WsCommanderImpl {
     active_nodes: Arc<RwLock<HashMap<String, ActiveNodeConnection>>>,
     pending_commands: Arc<Mutex<HashMap<String, oneshot::Sender<CommandResult>>>>,
 }
 
-impl Default for GrpcCommanderImpl {
+impl Default for WsCommanderImpl {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl GrpcCommanderImpl {
+impl WsCommanderImpl {
     pub fn new() -> Self {
         Self {
             active_nodes: Arc::new(RwLock::new(HashMap::new())),
@@ -39,11 +37,11 @@ impl GrpcCommanderImpl {
 }
 
 #[async_trait]
-impl NodeCommander for GrpcCommanderImpl {
+impl NodeCommander for WsCommanderImpl {
     fn register_node(
         &self,
         node_id: String,
-        sender: mpsc::Sender<Result<HubCommand, tonic::Status>>,
+        sender: mpsc::Sender<HubMessage>,
         inbound_tags: Vec<String>,
     ) {
         let mut active = self.active_nodes.write();
@@ -91,16 +89,13 @@ impl NodeCommander for GrpcCommanderImpl {
             pending.insert(command_id.clone(), tx);
         }
 
-        let cmd = HubCommand {
+        let cmd = HubMessage::AddUser {
             command_id: command_id.clone(),
-            command: Some(hub_command::Command::AddUser(AddUser {
-                uuid: user_uuid.to_string(),
-                email: user_uuid.to_string(),
-                inbound_tags: conn.inbound_tags.clone(),
-            })),
+            uuid: user_uuid.to_string(),
+            inbound_tags: conn.inbound_tags.clone(),
         };
 
-        if conn.sender.send(Ok(cmd)).await.is_err() {
+        if conn.sender.send(cmd).await.is_err() {
             let mut pending = self.pending_commands.lock();
             pending.remove(&command_id);
             return Err(CommanderError::SendError);
@@ -152,15 +147,13 @@ impl NodeCommander for GrpcCommanderImpl {
             pending.insert(command_id.clone(), tx);
         }
 
-        let cmd = HubCommand {
+        let cmd = HubMessage::RemoveUser {
             command_id: command_id.clone(),
-            command: Some(hub_command::Command::RemoveUser(RemoveUser {
-                email: user_uuid.to_string(),
-                inbound_tags: conn.inbound_tags.clone(),
-            })),
+            email: user_uuid.to_string(),
+            inbound_tags: conn.inbound_tags.clone(),
         };
 
-        if conn.sender.send(Ok(cmd)).await.is_err() {
+        if conn.sender.send(cmd).await.is_err() {
             let mut pending = self.pending_commands.lock();
             pending.remove(&command_id);
             return Err(CommanderError::SendError);

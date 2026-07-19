@@ -9,10 +9,16 @@ pub enum CommanderError {
     NodeRejected(String),
     #[error("Command execution timed out")]
     Timeout,
-    #[error("Failed to send command over gRPC channel")]
+    #[error("Failed to send command over WS channel")]
     SendError,
     #[error("Internal error: {0}")]
     Internal(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct CommandResult {
+    pub success: bool,
+    pub error_message: String,
 }
 
 #[async_trait]
@@ -31,18 +37,9 @@ pub trait NodeCommander: Send + Sync {
     fn register_node(
         &self,
         node_id: String,
-        sender: tokio::sync::mpsc::Sender<
-            Result<
-                crate::features::nodes::api::grpc_codegen::vpn::infrastructure::HubCommand,
-                tonic::Status,
-            >,
-        >,
+        sender: tokio::sync::mpsc::Sender<crate::features::nodes::api::dto::HubMessage>,
         inbound_tags: Vec<String>,
     );
     fn deregister_node(&self, node_id: &str);
-    fn resolve_command(
-        &self,
-        command_id: &str,
-        result: crate::features::nodes::api::grpc_codegen::vpn::infrastructure::CommandResult,
-    );
+    fn resolve_command(&self, command_id: &str, result: CommandResult);
 }

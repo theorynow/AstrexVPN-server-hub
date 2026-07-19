@@ -58,41 +58,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let state = build_app_state(pool.clone(), config.clone());
 
-    // Spawn gRPC server concurrently
-    let grpc_addr: std::net::SocketAddr =
-        format!("{}:{}", config.service_host, config.grpc_port).parse()?;
-
-    let connect_node_cmd = std::sync::Arc::new(
-        hub::features::nodes::application::commands::connect_node::ConnectNodeCommand::new(
-            state.nodes.node_repository.clone(),
-            config.node_auth_secret.clone(),
-        ),
-    );
-    let report_traffic_cmd = std::sync::Arc::new(
-        hub::features::nodes::application::commands::report_traffic::ReportTrafficCommand::new(),
-    );
-    let grpc_service = hub::features::nodes::api::handlers::grpc_hub::MyCoreHubService::new(
-        connect_node_cmd,
-        report_traffic_cmd,
-        state.nodes.node_repository.clone(),
-        state.nodes.grpc_commander.clone(),
-    );
-
-    tokio::spawn(async move {
-        info!("Starting gRPC server listening on {}", grpc_addr);
-        if let Err(e) = tonic::transport::Server::builder()
-            .add_service(
-                hub::features::nodes::api::grpc_codegen::vpn::infrastructure::hub_service_server::HubServiceServer::new(
-                    grpc_service,
-                ),
-            )
-            .serve(grpc_addr)
-            .await
-        {
-            error!(error = %e, "gRPC server stopped with error");
-        }
-    });
-
     let app = create_router(state);
 
     let addr = format!("{}:{}", config.service_host, config.service_port);
