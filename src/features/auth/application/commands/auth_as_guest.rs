@@ -9,8 +9,6 @@ use crate::{
     },
 };
 
-use crate::features::auth::GuestAuth;
-
 pub struct AuthAsGuestCommand {
     repo: Arc<dyn AuthRepository>,
 }
@@ -20,15 +18,11 @@ impl AuthAsGuestCommand {
         Self { repo }
     }
 
-    pub async fn execute(&self, input: GuestAuth) -> Result<AuthBody, AppError> {
-        // If an explicit username was provided use it; otherwise we'll generate player-{uuid}
-        // We pre-generate an id so we can use it in the default username,
+    pub async fn execute(&self) -> Result<AuthBody, AppError> {
+        // We pre-generate an id so we can use it in the username,
         // but the repo generates its own id — so we use the returned one for the token.
         let tentative_id = Uuid::new_v4();
-        let username = match input.username {
-            Some(ref name) if !name.trim().is_empty() => name.trim().to_string(),
-            _ => format!("player-{}", tentative_id),
-        };
+        let username = format!("guest-{}", tentative_id);
 
         let user_id = self
             .repo

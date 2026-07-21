@@ -40,11 +40,9 @@ async fn test_auth_routes_lifecycle() {
     let client = reqwest::Client::new();
     let base_url = format!("http://{}", app_addr);
 
-    // --- 1. Test /auth/guest without username (gets auto-generated player-{uuid} username) ---
+    // --- 1. Test /auth/guest (gets auto-generated guest-{uuid} username) ---
     let resp = client
         .post(format!("{}/auth/guest", base_url))
-        .header("content-type", "application/json")
-        .body("{}")
         .send()
         .await
         .unwrap();
@@ -64,7 +62,7 @@ async fn test_auth_routes_lifecycle() {
         .unwrap()
         .to_string();
 
-    // Verify the guest user has a player-{uuid} username in both API response and DB
+    // Verify the guest user has a guest-{uuid} username in both API response and DB
     let me_resp = client
         .get(format!("{}/user/me", base_url))
         .bearer_auth(&access_token)
@@ -81,9 +79,9 @@ async fn test_auth_routes_lifecycle() {
         .as_str()
         .unwrap()
         .to_string();
-    assert!(username.starts_with("player-"));
+    assert!(username.starts_with("guest-"));
 
-    // Check DB directly — guest users now always have username = "player-{uuid}"
+    // Check DB directly — guest users now always have username = "guest-{uuid}"
     let db_username: Option<String> =
         sqlx::query_scalar("SELECT username FROM users WHERE id = $1::uuid")
             .bind(&user_id)
@@ -93,58 +91,11 @@ async fn test_auth_routes_lifecycle() {
     assert!(
         db_username
             .as_deref()
-            .map(|u| u.starts_with("player-"))
+            .map(|u| u.starts_with("guest-"))
             .unwrap_or(false),
-        "Guest user should have a player-{{uuid}} username in DB, got: {:?}",
+        "Guest user should have a guest-{{uuid}} username in DB, got: {:?}",
         db_username
     );
-
-    // --- 2. Test /auth/guest with username ---
-    let guest_name = format!("guest-{}", Uuid::new_v4());
-    let resp_named = client
-        .post(format!("{}/auth/guest", base_url))
-        .json(&json!({ "username": guest_name }))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp_named.status(), StatusCode::OK);
-    let auth_body_named: RestApiResponse<Value> = resp_named.json().await.unwrap();
-    let access_token_named = auth_body_named
-        .0
-        .data
-        .unwrap()
-        .get("access_token")
-        .unwrap()
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    let me_resp_named = client
-        .get(format!("{}/user/me", base_url))
-        .bearer_auth(&access_token_named)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(me_resp_named.status(), StatusCode::OK);
-    let me_body_named: RestApiResponse<Value> = me_resp_named.json().await.unwrap();
-    let data_named = me_body_named.0.data.unwrap();
-    let user_id_named = data_named.get("id").unwrap().as_str().unwrap().to_string();
-    let username_named = data_named
-        .get("username")
-        .unwrap()
-        .as_str()
-        .unwrap()
-        .to_string();
-    assert_eq!(username_named, guest_name);
-
-    // Check DB directly
-    let db_username_named: Option<String> =
-        sqlx::query_scalar("SELECT username FROM users WHERE id = $1::uuid")
-            .bind(&user_id_named)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(db_username_named, Some(guest_name.clone()));
 
     // --- 3. Test /auth/register (register normal user) ---
     let reg_username = format!("user-{}", Uuid::new_v4());

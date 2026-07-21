@@ -1,6 +1,6 @@
 use crate::common::http::error::AppError;
 use crate::features::auth::api::dto::request::{
-    AuthUserDto, ChangePasswordDto, GuestAuthDto, RefreshSessionDto, RegisterAuthUserDto,
+    AuthUserDto, ChangePasswordDto, RefreshSessionDto, RegisterAuthUserDto,
 };
 use validator::Validate;
 
@@ -11,12 +11,6 @@ pub fn validate_register_auth_user(payload: &RegisterAuthUserDto) -> Result<(), 
 }
 
 pub fn validate_auth_user(payload: &AuthUserDto) -> Result<(), AppError> {
-    payload
-        .validate()
-        .map_err(|err| AppError::ValidationError(format!("Invalid input: {}", err)))
-}
-
-pub fn validate_guest_auth(payload: &GuestAuthDto) -> Result<(), AppError> {
     payload
         .validate()
         .map_err(|err| AppError::ValidationError(format!("Invalid input: {}", err)))

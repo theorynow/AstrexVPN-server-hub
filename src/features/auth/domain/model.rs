@@ -25,10 +25,6 @@ pub struct LoginUser {
     pub password: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GuestAuth {
-    pub username: Option<String>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefreshSession {

@@ -2,7 +2,7 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::features::auth::{GuestAuth, LoginUser, RefreshSession, RegisterUser};
+use crate::features::auth::{LoginUser, RefreshSession, RegisterUser};
 
 #[derive(Debug, Deserialize, ToSchema, Validate)]
 pub struct RegisterAuthUserDto {
@@ -18,13 +18,6 @@ pub struct AuthUserDto {
     pub password: Option<String>,
 }
 
-#[derive(Debug, Deserialize, ToSchema, Validate)]
-pub struct GuestAuthDto {
-    #[serde(default)]
-    #[schema(nullable, example = json!(null))]
-    #[validate(length(max = 64, message = "Username cannot exceed 64 characters"))]
-    pub username: Option<String>,
-}
 
 #[derive(Debug, Deserialize, ToSchema, Validate)]
 pub struct RefreshSessionDto {
@@ -50,13 +43,6 @@ impl From<AuthUserDto> for LoginUser {
     }
 }
 
-impl From<GuestAuthDto> for GuestAuth {
-    fn from(dto: GuestAuthDto) -> Self {
-        Self {
-            username: dto.username,
-        }
-    }
-}
 
 impl From<RefreshSessionDto> for RefreshSession {
     fn from(dto: RefreshSessionDto) -> Self {
