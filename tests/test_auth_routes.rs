@@ -55,6 +55,13 @@ async fn test_auth_routes_lifecycle() {
         .as_str()
         .unwrap()
         .to_string();
+    let guest_user_id = data
+        .get("user_id")
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(!guest_user_id.is_empty());
     let refresh_token = data
         .get("refresh_token")
         .unwrap()
@@ -110,6 +117,17 @@ async fn test_auth_routes_lifecycle() {
         .await
         .unwrap();
     assert_eq!(reg_resp.status(), StatusCode::OK);
+    let reg_resp_body: RestApiResponse<Value> = reg_resp.json().await.unwrap();
+    let reg_user_id = reg_resp_body
+        .0
+        .data
+        .unwrap()
+        .get("user_id")
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(!reg_user_id.is_empty());
 
     // Try registering the same username again (should fail)
     let dup_resp = client
@@ -135,10 +153,16 @@ async fn test_auth_routes_lifecycle() {
         .unwrap();
     assert_eq!(login_resp.status(), StatusCode::OK);
     let login_body: RestApiResponse<Value> = login_resp.json().await.unwrap();
-    let reg_access_token = login_body
-        .0
-        .data
+    let login_data = login_body.0.data.unwrap();
+    let login_user_id = login_data
+        .get("user_id")
         .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(login_user_id, reg_user_id);
+
+    let reg_access_token = login_data
         .get("access_token")
         .unwrap()
         .as_str()
@@ -215,4 +239,25 @@ async fn test_auth_routes_lifecycle() {
         .await
         .unwrap();
     assert_eq!(new_pwd_login_resp.status(), StatusCode::OK);
+
+    // --- 7. Test UserTrafficService packet consumption ---
+    use hub::features::nodes::application::ports::UserTrafficService;
+    let user_traffic_service = hub::common::app::adapters::UserTrafficServiceImpl::new(pool.clone());
+    
+    // Get remaining traffic for guest user created earlier (user_id)
+    let initial_remaining = user_traffic_service.get_remaining_traffic(&user_id).await.unwrap();
+    assert_eq!(initial_remaining, 26843545600); // 25 GB default packet
+
+    // Consume 5 GB
+    let consumed_bytes = 5000000000;
+    let remaining_after_first = user_traffic_service.consume_traffic(&user_id, consumed_bytes).await.unwrap();
+    assert_eq!(remaining_after_first, 26843545600 - 5000000000);
+
+    // Consume all remaining and more (30 GB)
+    let remaining_after_second = user_traffic_service.consume_traffic(&user_id, 30000000000).await.unwrap();
+    assert_eq!(remaining_after_second, 0);
+
+    // Try to consume when already at 0
+    let remaining_after_third = user_traffic_service.consume_traffic(&user_id, 1000).await.unwrap();
+    assert_eq!(remaining_after_third, 0);
 }

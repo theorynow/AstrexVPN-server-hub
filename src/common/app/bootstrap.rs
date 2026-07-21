@@ -12,6 +12,7 @@ use crate::features::auth::{
     LoginUserCommand, RefreshSessionCommand, RegisterUserCommand, UserExistsQuery,
 };
 use crate::features::nodes::{
+    application::ports::UserTrafficService,
     domain::ports::node_repository::NodeRepository,
     infra::adapters::{pg_node_repository::PgNodeRepository, ws_commander_impl::WsCommanderImpl},
 };
@@ -90,7 +91,10 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
 
     let nodes_repo: Arc<dyn NodeRepository> = Arc::new(PgNodeRepository::new(pool.clone()));
     let node_commander = Arc::new(WsCommanderImpl::new());
-    let nodes_state = NodesState::new(nodes_repo, node_commander);
+    let user_traffic_service: Arc<dyn UserTrafficService> = Arc::new(
+        crate::common::app::adapters::UserTrafficServiceImpl::new(pool.clone())
+    );
+    let nodes_state = NodesState::new(nodes_repo, node_commander, user_traffic_service);
 
     let state = AppState::new(config, pool.clone(), auth_state, user_state, nodes_state);
 

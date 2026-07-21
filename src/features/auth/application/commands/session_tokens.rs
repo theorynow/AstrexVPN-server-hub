@@ -24,8 +24,8 @@ pub(super) async fn issue_tokens_with_family(
         hash_util::hash_refresh_token(&refresh_token).map_err(|_| AppError::InternalError)?;
     let expires_at = Utc::now() + chrono::Duration::days(30);
 
-    repo.save_refresh_token(user_id, token_hash, family_id, expires_at)
+    repo.save_refresh_token(user_id.clone(), token_hash, family_id, expires_at)
         .await?;
 
-    Ok(AuthBody::new(access_token, refresh_token))
+    Ok(AuthBody::new(access_token, refresh_token, user_id))
 }

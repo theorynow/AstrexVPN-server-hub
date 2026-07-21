@@ -125,8 +125,10 @@ async fn handle_socket(socket: WebSocket, state: crate::common::app::state::AppS
 
     tracing::info!(node_id = %node_id, public_ip = %public_ip, "Node WebSocket connected successfully");
 
-    // 3. Run concurrent loops to process incoming/outgoing messages
-    let report_traffic_cmd = Arc::new(ReportTrafficCommand::new(state.pool.clone()));
+    let report_traffic_cmd = Arc::new(ReportTrafficCommand::new(
+        state.nodes.user_traffic_service.clone(),
+        state.nodes.node_commander.clone(),
+    ));
     let node_id_clone = node_id.clone();
     let node_commander = state.nodes.node_commander.clone();
 
@@ -191,7 +193,11 @@ async fn handle_socket(socket: WebSocket, state: crate::common::app::state::AppS
                                         }
                                     }
                                     NodeMessage::TrafficReport { user_bytes } => {
-                                        report_traffic_cmd.execute(&node_id_clone, user_bytes).await;
+                                         let cmd = report_traffic_cmd.clone();
+                                         let nid = node_id_clone.clone();
+                                         tokio::spawn(async move {
+                                             cmd.execute(&nid, user_bytes).await;
+                                         });
                                     }
                                     NodeMessage::CommandResult { command_id, success, error_message } => {
                                         let res = crate::features::nodes::domain::ports::node_commander::CommandResult {

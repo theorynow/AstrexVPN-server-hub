@@ -81,7 +81,10 @@ pub(crate) async fn add_user_to_node(
     State(state): State<crate::common::app::state::AppState>,
     Path((node_id, user_uuid)): Path<(String, String)>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let cmd = AddUserToNodeCommand::new(state.nodes.node_commander.clone());
+    let cmd = AddUserToNodeCommand::new(
+        state.nodes.node_commander.clone(),
+        state.nodes.user_traffic_service.clone(),
+    );
     cmd.execute(&node_id, &user_uuid).await?;
     Ok(Json(ApiResponse::success(())))
 }

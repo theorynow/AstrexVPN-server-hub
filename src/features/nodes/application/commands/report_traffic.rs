@@ -1,13 +1,27 @@
-use sqlx::PgPool;
 use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::{
+    features::nodes::{
+        application::ports::UserTrafficService,
+        domain::ports::node_commander::NodeCommander,
+    },
+};
 
 pub struct ReportTrafficCommand {
-    pool: PgPool,
+    user_traffic_service: Arc<dyn UserTrafficService>,
+    node_commander: Arc<dyn NodeCommander>,
 }
 
 impl ReportTrafficCommand {
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(
+        user_traffic_service: Arc<dyn UserTrafficService>,
+        node_commander: Arc<dyn NodeCommander>,
+    ) -> Self {
+        Self {
+            user_traffic_service,
+            node_commander,
+        }
     }
 
     pub async fn execute(&self, node_id: &str, user_bytes: HashMap<String, u64>) {
@@ -19,33 +33,38 @@ impl ReportTrafficCommand {
                 "Node traffic report received"
             );
 
-            if let Ok(parsed_uuid) = uuid::Uuid::parse_str(&user_uuid) {
-                let query_res = sqlx::query(
-                    r#"
-                    UPDATE users
-                    SET 
-                        traffic_used_bytes = traffic_used_bytes + $2,
-                        modified_at = now()
-                    WHERE id = $1
-                    "#,
-                )
-                .bind(parsed_uuid)
-                .bind(bytes as i64)
-                .execute(&self.pool)
-                .await;
+            match self.user_traffic_service.consume_traffic(&user_uuid, bytes).await {
+                Ok(remaining) => {
+                    tracing::info!(
+                        user_uuid = %user_uuid,
+                        remaining_bytes = remaining,
+                        "Successfully consumed traffic"
+                    );
 
-                if let Err(e) = query_res {
+                    if remaining == 0 {
+                        tracing::warn!(
+                            user_uuid = %user_uuid,
+                            node_id = %node_id,
+                            "User has exhausted their traffic. Removing from node."
+                        );
+
+                        if let Err(e) = self.node_commander.execute_remove_user(node_id, &user_uuid).await {
+                            tracing::error!(
+                                node_id = %node_id,
+                                user_uuid = %user_uuid,
+                                error = %e,
+                                "Failed to send remove user command to node after traffic exhaustion"
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
                     tracing::error!(
                         user_uuid = %user_uuid,
                         error = %e,
                         "Failed to update traffic in DB"
                     );
                 }
-            } else {
-                tracing::warn!(
-                    user_uuid = %user_uuid,
-                    "Skipping traffic update: invalid UUID format"
-                );
             }
         }
     }

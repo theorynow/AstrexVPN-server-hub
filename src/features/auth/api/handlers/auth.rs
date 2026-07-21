@@ -5,8 +5,9 @@ use crate::{
         security::jwt::AuthBody,
     },
     features::auth::api::{
-        dto::request::{
-            AuthUserDto, ChangePasswordDto, RefreshSessionDto, RegisterAuthUserDto,
+        dto::{
+            request::{AuthUserDto, ChangePasswordDto, RefreshSessionDto, RegisterAuthUserDto},
+            response::RegisterResponseDto,
         },
         handlers::validation::{
             validate_auth_user, validate_change_password,
@@ -21,7 +22,7 @@ use axum::{response::IntoResponse, Json};
     post,
     path = "/auth/register",
     request_body = RegisterAuthUserDto,
-    responses((status = 200, description = "Create user authentication", body = RegisterAuthUserDto)),
+    responses((status = 200, description = "Create user authentication", body = RegisterResponseDto)),
     tag = "UserAuth"
 )]
 pub async fn create_user_auth(
@@ -30,8 +31,8 @@ pub async fn create_user_auth(
 ) -> Result<impl IntoResponse, AppError> {
     validate_register_auth_user(&payload)?;
 
-    state.register_user.execute(payload.into()).await?;
-    Ok(RestApiResponse::success(()))
+    let user_id = state.register_user.execute(payload.into()).await?;
+    Ok(RestApiResponse::success(RegisterResponseDto { user_id }))
 }
 
 #[utoipa::path(

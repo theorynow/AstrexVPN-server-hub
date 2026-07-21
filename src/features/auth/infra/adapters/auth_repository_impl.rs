@@ -99,6 +99,16 @@ impl AuthRepository for AuthRepositoryImpl {
         .execute(&mut *tx)
         .await?;
 
+        sqlx::query(
+            r#"
+                INSERT INTO user_traffic_packets (user_id, traffic_limit_bytes, traffic_remaining_bytes, expires_at)
+                VALUES ($1::uuid, 26843545600, 26843545600, now() + INTERVAL '30 days')
+            "#,
+        )
+        .bind(&user_id)
+        .execute(&mut *tx)
+        .await?;
+
         tx.commit().await?;
 
         Ok(user_id)

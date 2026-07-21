@@ -22,8 +22,8 @@ const FIND_USER_QUERY: &str = r#"
     SELECT
         u.id::text AS id,
         u.username,
-        u.traffic_limit_bytes,
-        u.traffic_used_bytes,
+        COALESCE((SELECT SUM(traffic_limit_bytes)::BIGINT FROM user_traffic_packets WHERE user_id = u.id AND expires_at > now()), 0) AS traffic_total_bytes,
+        COALESCE((SELECT SUM(traffic_remaining_bytes)::BIGINT FROM user_traffic_packets WHERE user_id = u.id AND expires_at > now()), 0) AS traffic_remaining_bytes,
         u.created_at,
         u.modified_at
     FROM users u
@@ -34,8 +34,8 @@ const FIND_USER_INFO_QUERY: &str = r#"
     SELECT
         u.id::text AS id,
         u.username,
-        u.traffic_limit_bytes,
-        u.traffic_used_bytes,
+        COALESCE((SELECT SUM(traffic_limit_bytes)::BIGINT FROM user_traffic_packets WHERE user_id = u.id AND expires_at > now()), 0) AS traffic_total_bytes,
+        COALESCE((SELECT SUM(traffic_remaining_bytes)::BIGINT FROM user_traffic_packets WHERE user_id = u.id AND expires_at > now()), 0) AS traffic_remaining_bytes,
         u.created_at,
         u.modified_at
     FROM users u
@@ -46,8 +46,8 @@ const FIND_USER_INFO_QUERY: &str = r#"
 struct UserRow {
     id: String,
     username: Option<String>,
-    traffic_limit_bytes: i64,
-    traffic_used_bytes: i64,
+    traffic_total_bytes: i64,
+    traffic_remaining_bytes: i64,
     created_at: Option<DateTime<Utc>>,
     modified_at: Option<DateTime<Utc>>,
 }
@@ -57,8 +57,8 @@ impl From<UserRow> for User {
         Self {
             id: row.id,
             username: row.username,
-            traffic_limit_bytes: row.traffic_limit_bytes,
-            traffic_used_bytes: row.traffic_used_bytes,
+            traffic_total_bytes: row.traffic_total_bytes,
+            traffic_remaining_bytes: row.traffic_remaining_bytes,
             created_at: row.created_at,
             modified_at: row.modified_at,
         }
@@ -128,18 +128,22 @@ impl UserRepository for UserRepositoryImpl {
     ) -> Result<Option<User>, AppError> {
         let user = sqlx::query_as::<_, UserRow>(
             r#"
-            UPDATE users
-            SET
-                username = COALESCE($2, username),
-                modified_at = CURRENT_TIMESTAMP
-            WHERE id = $1::uuid
-            RETURNING
-                id::text AS id,
-                username,
-                traffic_limit_bytes,
-                traffic_used_bytes,
-                created_at,
-                modified_at
+            WITH updated AS (
+                UPDATE users
+                SET
+                    username = COALESCE($2, username),
+                    modified_at = CURRENT_TIMESTAMP
+                WHERE id = $1::uuid
+                RETURNING id, username, created_at, modified_at
+            )
+            SELECT
+                u.id::text AS id,
+                u.username,
+                COALESCE((SELECT SUM(traffic_limit_bytes)::BIGINT FROM user_traffic_packets WHERE user_id = u.id AND expires_at > now()), 0) AS traffic_total_bytes,
+                COALESCE((SELECT SUM(traffic_remaining_bytes)::BIGINT FROM user_traffic_packets WHERE user_id = u.id AND expires_at > now()), 0) AS traffic_remaining_bytes,
+                u.created_at,
+                u.modified_at
+            FROM updated u
             "#,
         )
         .bind(id)

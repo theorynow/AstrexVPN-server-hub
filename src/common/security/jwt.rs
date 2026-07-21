@@ -92,16 +92,18 @@ pub struct AuthBody {
     pub access_token: String,
     pub refresh_token: String,
     pub token_type: String,
+    pub user_id: String,
 }
 
 /// The AuthBody struct is used to create a new instance of the authentication body.
 /// It takes an access & refresh token as a parameter and sets the token type to "Bearer".
 impl AuthBody {
-    pub fn new(access_token: String, refresh_token: String) -> Self {
+    pub fn new(access_token: String, refresh_token: String, user_id: String) -> Self {
         Self {
             access_token,
             refresh_token,
             token_type: "Bearer".to_string(),
+            user_id,
         }
     }
 }
