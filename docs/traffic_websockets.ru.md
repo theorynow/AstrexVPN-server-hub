@@ -13,7 +13,8 @@ sequenceDiagram
     participant Centrifugo WS as Centrifugo WS
 
     Client->>Hub API: GET /traffic/me (Загрузка начального состояния трафика)
-    Hub API-->>Client: 200 OK (traffic_total_bytes, traffic_remaining_bytes)
+    Hub API-->>Client: 200 OK (traffic_total_bytes, remaining_bytes, updated_at_ms)
+    Note over Client: Сохранить last_applied_ms = updated_at_ms
     
     Client->>Hub API: GET /traffic/ws-tokens (Запрос токенов)
     Hub API-->>Client: 200 OK (connection_token, subscription_token, channel)
@@ -30,12 +31,14 @@ sequenceDiagram
     Note over Client, Centrifugo WS: Прослушивание событий в реальном времени...
     
     alt Изменение трафика (добавление или списание)
-        Centrifugo WS->>Client: Фрейм Push-уведомления (новые объемы трафика)
+        Centrifugo WS->>Client: Фрейм Push-уведомления (данные трафика + updated_at_ms)
+        Note over Client: Применить только если push.updated_at_ms > last_applied_ms
     end
     
     alt Соединение разорвано
         Centrifugo WS--xClient: Отключение
         Client->>Hub API: GET /traffic/me (Получение свежего состояния трафика)
+        Note over Client: Обновить last_applied_ms = response.updated_at_ms
         Client->>Hub API: GET /traffic/ws-tokens (Получение свежих токенов)
         Client->>Centrifugo WS: Повторное подключение и подписка
     end
@@ -137,7 +140,8 @@ Centrifugo использует текстовые JSON-фреймы для вз
     "pub": {
       "data": {
         "traffic_total_bytes": 26843545600,
-        "traffic_remaining_bytes": 24696061952
+        "traffic_remaining_bytes": 24696061952,
+        "updated_at_ms": 1753192800000
       }
     }
   }
@@ -146,12 +150,55 @@ Centrifugo использует текстовые JSON-фреймы для вз
 
 * **`traffic_total_bytes`**: Сумма лимитов всех активных, неистекших пакетов трафика пользователя.
 * **`traffic_remaining_bytes`**: Сумма оставшегося трафика по всем активным пакетам.
+* **`updated_at_ms`**: Unix-время последней записи в БД (миллисекунды). Используется как монотонный курсор (см. раздел ниже).
 
 ---
 
-## 5. Политика переподключения и восстановления (Recovery)
+## 5. Решение гонки состояний REST vs WebSocket
+
+Между HTTP-снимком состояния и WS-потоком существует классическая **гонка состояний (race condition)**:
+
+```
+Клиент              Сервер
+  |                    |
+  |--GET /traffic/me-->|    # запрос снимка состояния
+  |                    |--push (updated_at_ms=T2)-->  # нода списала трафик
+  |<--200 (T1)---------|    # устаревший ответ приходит ПОСЛЕ пуша
+  # ❌ Клиент перетирает свежие данные T2 устаревшими T1
+```
+
+### Решение: монотонный курсор `updated_at_ms`
+
+И `GET /traffic/me`, и каждый WS-пуш содержат поле `updated_at_ms` — это `MAX(modified_at)` всех активных пакетов, выраженный в Unix-миллисекундах.
+
+**Псевдокод на стороне клиента:**
+```swift
+var lastAppliedMs: Int64 = 0
+
+func applyTrafficState(totalBytes: Int64, remainingBytes: Int64, updatedAtMs: Int64) {
+    guard updatedAtMs > lastAppliedMs else { return }  // устаревшее — игнорируем
+    lastAppliedMs = updatedAtMs
+    // обновляем UI
+}
+
+// При запуске приложения:
+let snapshot = await GET("/traffic/me")          // { ..., updated_at_ms: T1 }
+applyTrafficState(...snapshot, updatedAtMs: T1)
+subscribeWebSocket()  // может принять пуши с T0..T1..T2
+
+// На каждый WS-пуш:
+let push = receivedPush.data                     // { ..., updated_at_ms: T2 }
+applyTrafficState(...push, updatedAtMs: T2)       // T2 > T1 → применяем; T0 → игнорируем
+```
+
+> [!TIP]
+> Порядок подписки на WS и HTTP-запроса **не важен**. Подпишись первым или запроси снимок первым — `updated_at_ms` всегда корректно расставит приоритет.
+
+---
+
+## 6. Политика переподключения и восстановления (Recovery)
 
 > [!IMPORTANT]
 > **Отсутствие истории/восстановления:** Пространство имен `personal` работает без записи истории сообщений.
 >
-> Когда клиент отключается и подключается заново (например, при смене сети Wi-Fi/LTE, выходе из спящего режима или сбое сети), он **не должен** пытаться запрашивать пропущенные сообщения. Вместо этого клиент должен выполнить обычный HTTP-запрос к `GET /traffic/me` для синхронизации текущих объемов трафика, запросить свежие токены через `GET /traffic/ws-tokens`, а затем заново подключиться к сокету и подписаться на канал.
+> Когда клиент отключается и подключается заново (например, при смене сети Wi-Fi/LTE, выходе из спящего режима или сбое сети), он **не должен** пытаться запрашивать пропущенные сообщения. Вместо этого клиент должен выполнить обычный HTTP-запрос к `GET /traffic/me` для синхронизации текущих объемов трафика (и обновить `last_applied_ms`), запросить свежие токены через `GET /traffic/ws-tokens`, а затем заново подключиться к сокету и подписаться на канал.

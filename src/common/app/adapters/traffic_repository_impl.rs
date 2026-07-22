@@ -29,6 +29,7 @@ impl TrafficRepositoryImpl {
         let payload = serde_json::json!({
             "traffic_total_bytes": summary.total_bytes,
             "traffic_remaining_bytes": summary.remaining_bytes,
+            "updated_at_ms": summary.updated_at_ms,
         });
         let channel = format!("personal:{}", user_id);
         if let Err(e) = self.publisher.publish(&channel, payload).await {
@@ -75,11 +76,12 @@ impl TrafficRepository for TrafficRepositoryImpl {
         let parsed_uuid = uuid::Uuid::parse_str(user_id)
             .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?;
 
-        let row: Option<(Option<i64>, Option<i64>)> = sqlx::query_as(
+        let row: Option<(Option<i64>, Option<i64>, Option<DateTime<Utc>>)> = sqlx::query_as(
             r#"
             SELECT 
                 SUM(traffic_limit_bytes)::BIGINT,
-                SUM(traffic_remaining_bytes)::BIGINT
+                SUM(traffic_remaining_bytes)::BIGINT,
+                MAX(modified_at)
             FROM user_traffic_packets
             WHERE user_id = $1 AND expires_at > now()
             "#
@@ -88,10 +90,14 @@ impl TrafficRepository for TrafficRepositoryImpl {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some((Some(total), Some(remaining))) = row {
+        if let Some((Some(total), Some(remaining), modified_at)) = row {
+            let updated_at_ms = modified_at
+                .unwrap_or_else(Utc::now)
+                .timestamp_millis();
             Ok(TrafficSummary {
                 total_bytes: total,
                 remaining_bytes: remaining,
+                updated_at_ms,
             })
         } else {
             Ok(TrafficSummary::default())

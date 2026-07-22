@@ -19,4 +19,9 @@ pub struct TrafficSummary {
     pub total_bytes: i64,
     /// Remaining bytes across all active non-expired packets.
     pub remaining_bytes: i64,
+    /// Unix timestamp (milliseconds) of the last change to any active packet.
+    /// Used as a monotonic cursor by clients to resolve REST vs WS ordering:
+    /// discard any update where updated_at_ms <= last_applied_at_ms.
+    pub updated_at_ms: i64,
 }
+

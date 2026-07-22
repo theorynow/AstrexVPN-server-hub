@@ -12,8 +12,9 @@ sequenceDiagram
     participant Hub API
     participant Centrifugo WS
 
-    Client->>Hub API: GET /traffic/me (Load initial traffic stats)
-    Hub API-->>Client: 200 OK (traffic_total_bytes, traffic_remaining_bytes)
+    Client->>Hub API: GET /traffic/me (Load initial traffic state)
+    Hub API-->>Client: 200 OK (traffic_total_bytes, remaining_bytes, updated_at_ms)
+    Note over Client: Store last_applied_ms = updated_at_ms
     
     Client->>Hub API: GET /traffic/ws-tokens (Request tokens)
     Hub API-->>Client: 200 OK (connection_token, subscription_token, channel)
@@ -30,12 +31,14 @@ sequenceDiagram
     Note over Client, Centrifugo WS: Listening to real-time events...
     
     alt Traffic Changes (Add/Consume)
-        Centrifugo WS->>Client: Push Notification Frame (updated traffic stats)
+        Centrifugo WS->>Client: Push Notification Frame (updated traffic stats + updated_at_ms)
+        Note over Client: Apply only if push.updated_at_ms > last_applied_ms
     end
     
     alt Connection Dropped
         Centrifugo WS--xClient: Disconnected
         Client->>Hub API: GET /traffic/me (Fetch fresh state / sync values)
+        Note over Client: Update last_applied_ms = response.updated_at_ms
         Client->>Hub API: GET /traffic/ws-tokens (Get fresh tokens)
         Client->>Centrifugo WS: Re-establish connection & Re-subscribe
     end
@@ -137,7 +140,8 @@ Whenever user traffic is consumed by a VPN node or new traffic is added via the 
     "pub": {
       "data": {
         "traffic_total_bytes": 26843545600,
-        "traffic_remaining_bytes": 24696061952
+        "traffic_remaining_bytes": 24696061952,
+        "updated_at_ms": 1753192800000
       }
     }
   }
@@ -146,6 +150,49 @@ Whenever user traffic is consumed by a VPN node or new traffic is added via the 
 
 * **`traffic_total_bytes`**: The sum of all active, non-expired packets' limits.
 * **`traffic_remaining_bytes`**: The sum of all active packets' remaining traffic.
+* **`updated_at_ms`**: Unix timestamp in milliseconds of the last DB write. Use as a monotonic cursor (see section below).
+
+---
+
+## 5. Solving the REST vs WebSocket Race Condition
+
+A **race condition** exists between the initial REST fetch and the WebSocket stream:
+
+```
+Client            Server
+  |                  |
+  |--GET /traffic/me>|    # request snapshot
+  |                  |--push (updated_at_ms=T2)-->  # node drained traffic
+  |<--200 (T1)-------|    # stale snapshot arrives AFTER ws push
+  # ❌ Client overwrites T2 with T1
+```
+
+### Solution: `updated_at_ms` monotonic cursor
+
+Both `GET /traffic/me` and every WS push include `updated_at_ms` — the `MAX(modified_at)` of all active packets, expressed as Unix milliseconds.
+
+**Client pseudocode:**
+```swift
+var lastAppliedMs: Int64 = 0
+
+func applyTrafficState(totalBytes: Int64, remainingBytes: Int64, updatedAtMs: Int64) {
+    guard updatedAtMs > lastAppliedMs else { return }  // discard stale
+    lastAppliedMs = updatedAtMs
+    // update UI
+}
+
+// On app launch:
+let snapshot = await GET("/traffic/me")          // { ..., updated_at_ms: T1 }
+applyTrafficState(...snapshot, updatedAtMs: T1)
+subscribeWebSocket()  // may receive pushes with T0..T1..T2
+
+// On each WS push:
+let push = receivedPush.data                     // { ..., updated_at_ms: T2 }
+applyTrafficState(...push, updatedAtMs: T2)       // T2 > T1 → applied; T0 → discarded
+```
+
+> [!TIP]
+> The order of REST and WS subscription **does not matter**. Subscribe first or fetch first — `updated_at_ms` always wins.
 
 ---
 

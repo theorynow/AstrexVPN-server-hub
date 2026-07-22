@@ -21,6 +21,7 @@ pub async fn get_my_traffic(
     let dto = TrafficSummaryDto {
         traffic_total_bytes: summary.total_bytes,
         traffic_remaining_bytes: summary.remaining_bytes,
+        updated_at_ms: summary.updated_at_ms,
     };
     Ok(RestApiResponse::success(dto))
 }

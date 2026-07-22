@@ -39,5 +39,9 @@ pub struct CentrifugeTokenDto {
 pub struct TrafficSummaryDto {
     pub traffic_total_bytes: i64,
     pub traffic_remaining_bytes: i64,
+    /// Unix timestamp in milliseconds of the last traffic change.
+    /// Clients must use this as a monotonic cursor:
+    /// discard any incoming update (REST or WS) if its `updated_at_ms`
+    /// is less than or equal to the last applied value.
+    pub updated_at_ms: i64,
 }
-
