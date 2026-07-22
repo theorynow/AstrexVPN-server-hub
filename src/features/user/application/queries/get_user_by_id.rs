@@ -2,16 +2,20 @@ use std::sync::Arc;
 
 use crate::{
     common::http::error::AppError,
-    features::user::{UserProfile, UserRepository},
+    features::{
+        traffic::application::ports::TrafficRepository,
+        user::{UserProfile, UserRepository},
+    },
 };
 
 pub struct GetUserByIdQuery {
     repo: Arc<dyn UserRepository>,
+    traffic_repo: Arc<dyn TrafficRepository>,
 }
 
 impl GetUserByIdQuery {
-    pub fn new(repo: Arc<dyn UserRepository>) -> Self {
-        Self { repo }
+    pub fn new(repo: Arc<dyn UserRepository>, traffic_repo: Arc<dyn TrafficRepository>) -> Self {
+        Self { repo, traffic_repo }
     }
 
     pub async fn execute(&self, id: String) -> Result<UserProfile, AppError> {
@@ -21,6 +25,8 @@ impl GetUserByIdQuery {
             .await?
             .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
-        UserProfile::resolve(user).await
+        let summary = self.traffic_repo.get_summary(&id).await?;
+
+        UserProfile::resolve(user, summary).await
     }
 }

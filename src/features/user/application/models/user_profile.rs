@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
 
-use crate::{common::http::error::AppError, features::user::User};
+use crate::{
+    common::http::error::AppError,
+    features::{traffic::domain::model::TrafficSummary, user::User},
+};
 
 #[derive(Debug, Clone)]
 pub struct UserProfile {
@@ -13,15 +16,15 @@ pub struct UserProfile {
 }
 
 impl UserProfile {
-    pub async fn resolve(user: User) -> Result<Self, AppError> {
+    pub async fn resolve(user: User, summary: TrafficSummary) -> Result<Self, AppError> {
         let username = user
             .username
             .unwrap_or_else(|| format!("player-{}", user.id));
         Ok(Self {
             id: user.id,
             username,
-            traffic_total_bytes: user.traffic_total_bytes,
-            traffic_remaining_bytes: user.traffic_remaining_bytes,
+            traffic_total_bytes: summary.total_bytes,
+            traffic_remaining_bytes: summary.remaining_bytes,
             created_at: user.created_at,
             modified_at: user.modified_at,
         })

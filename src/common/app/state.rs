@@ -6,10 +6,12 @@ use super::config::Config;
 pub mod auth;
 pub mod nodes;
 pub mod user;
+pub mod traffic;
 
 pub use auth::AuthState;
 pub use nodes::NodesState;
 pub use user::UserState;
+pub use traffic::TrafficState;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -18,6 +20,7 @@ pub struct AppState {
     pub auth: AuthState,
     pub user: UserState,
     pub nodes: NodesState,
+    pub traffic: TrafficState,
 }
 
 impl AppState {
@@ -27,6 +30,7 @@ impl AppState {
         auth: AuthState,
         user: UserState,
         nodes: NodesState,
+        traffic: TrafficState,
     ) -> Self {
         Self {
             config,
@@ -34,6 +38,7 @@ impl AppState {
             auth,
             user,
             nodes,
+            traffic,
         }
     }
 }
@@ -59,5 +64,11 @@ impl FromRef<AppState> for UserState {
 impl FromRef<AppState> for NodesState {
     fn from_ref(state: &AppState) -> Self {
         state.nodes.clone()
+    }
+}
+
+impl FromRef<AppState> for TrafficState {
+    fn from_ref(state: &AppState) -> Self {
+        state.traffic.clone()
     }
 }

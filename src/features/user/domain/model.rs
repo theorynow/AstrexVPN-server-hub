@@ -4,8 +4,6 @@ use chrono::{DateTime, Utc};
 pub struct User {
     pub id: String,
     pub username: Option<String>,
-    pub traffic_total_bytes: i64,
-    pub traffic_remaining_bytes: i64,
     pub created_at: Option<DateTime<Utc>>,
     pub modified_at: Option<DateTime<Utc>>,
 }

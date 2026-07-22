@@ -2,16 +2,20 @@ use std::sync::Arc;
 
 use crate::{
     common::http::error::AppError,
-    features::user::{UpdateUserProfile, UserProfile, UserRepository},
+    features::{
+        traffic::application::ports::TrafficRepository,
+        user::{UpdateUserProfile, UserProfile, UserRepository},
+    },
 };
 
 pub struct UpdateMeCommand {
     repo: Arc<dyn UserRepository>,
+    traffic_repo: Arc<dyn TrafficRepository>,
 }
 
 impl UpdateMeCommand {
-    pub fn new(repo: Arc<dyn UserRepository>) -> Self {
-        Self { repo }
+    pub fn new(repo: Arc<dyn UserRepository>, traffic_repo: Arc<dyn TrafficRepository>) -> Self {
+        Self { repo, traffic_repo }
     }
 
     pub async fn execute(
@@ -26,7 +30,9 @@ impl UpdateMeCommand {
             .await?
             .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
-        UserProfile::resolve(user).await
+        let summary = self.traffic_repo.get_summary(&user_id).await?;
+
+        UserProfile::resolve(user, summary).await
     }
 }
 
@@ -42,8 +48,8 @@ fn normalize_update(update: UpdateUserProfile) -> Result<UpdateUserProfile, AppE
     Ok(UpdateUserProfile { username })
 }
 
-fn normalize_optional_field(value: Option<String>) -> Option<String> {
-    value
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
+fn normalize_optional_field(field: Option<String>) -> Option<String> {
+    field
+        .map(|f| f.trim().to_string())
+        .filter(|f| !f.is_empty())
 }

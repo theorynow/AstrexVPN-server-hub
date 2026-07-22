@@ -14,9 +14,9 @@ use crate::{
 pub fn node_routes() -> Router<AppState> {
     Router::new()
         .route("/active", get(get_active_nodes))
-        .route("/{node_id}/users/{user_uuid}", post(add_user_to_node))
+        .route("/{node_id}", post(add_user_to_node))
         .route(
-            "/{node_id}/users/{user_uuid}",
+            "/{node_id}",
             axum::routing::delete(remove_user_from_node),
         )
 }

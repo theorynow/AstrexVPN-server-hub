@@ -1,3 +1,5 @@
-pub mod user_traffic_service_impl;
+pub mod traffic_repository_impl;
+pub mod http_centrifugo_client;
 
-pub use user_traffic_service_impl::UserTrafficServiceImpl;
+pub use traffic_repository_impl::TrafficRepositoryImpl;
+pub use http_centrifugo_client::HttpCentrifugoClient;

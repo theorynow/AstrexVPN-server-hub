@@ -8,7 +8,7 @@ use utoipa::{
 };
 
 use crate::{
-    common::http::{dto::ApiResponse, error::AppError},
+    common::http::{dto::ApiResponse, error::AppError, current_user::CurrentUser},
     features::nodes::application::{
         commands::{
             add_user_to_node::AddUserToNodeCommand,
@@ -68,10 +68,9 @@ pub(crate) async fn get_active_nodes(
 
 #[utoipa::path(
     post,
-    path = "/nodes/{node_id}/users/{user_uuid}",
+    path = "/nodes/{node_id}",
     params(
-        ("node_id" = String, Path, description = "Node ID"),
-        ("user_uuid" = String, Path, description = "User UUID")
+        ("node_id" = String, Path, description = "Node ID")
     ),
     responses((status = 200, description = "User added to node successfully")),
     tag = "Nodes",
@@ -79,22 +78,22 @@ pub(crate) async fn get_active_nodes(
 )]
 pub(crate) async fn add_user_to_node(
     State(state): State<crate::common::app::state::AppState>,
-    Path((node_id, user_uuid)): Path<(String, String)>,
+    current_user: CurrentUser,
+    Path(node_id): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let cmd = AddUserToNodeCommand::new(
         state.nodes.node_commander.clone(),
         state.nodes.user_traffic_service.clone(),
     );
-    cmd.execute(&node_id, &user_uuid).await?;
+    cmd.execute(&node_id, &current_user.user_id).await?;
     Ok(Json(ApiResponse::success(())))
 }
 
 #[utoipa::path(
     delete,
-    path = "/nodes/{node_id}/users/{user_uuid}",
+    path = "/nodes/{node_id}",
     params(
-        ("node_id" = String, Path, description = "Node ID"),
-        ("user_uuid" = String, Path, description = "User UUID")
+        ("node_id" = String, Path, description = "Node ID")
     ),
     responses((status = 200, description = "User removed from node successfully")),
     tag = "Nodes",
@@ -102,9 +101,10 @@ pub(crate) async fn add_user_to_node(
 )]
 pub(crate) async fn remove_user_from_node(
     State(state): State<crate::common::app::state::AppState>,
-    Path((node_id, user_uuid)): Path<(String, String)>,
+    current_user: CurrentUser,
+    Path(node_id): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let cmd = RemoveUserFromNodeCommand::new(state.nodes.node_commander.clone());
-    cmd.execute(&node_id, &user_uuid).await?;
+    cmd.execute(&node_id, &current_user.user_id).await?;
     Ok(Json(ApiResponse::success(())))
 }

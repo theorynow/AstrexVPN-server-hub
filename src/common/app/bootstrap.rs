@@ -5,7 +5,7 @@ use sqlx::{migrate::MigrateError, PgPool};
 
 use crate::common::app::{
     config::Config,
-    state::{AppState, AuthState, NodesState, UserState},
+    state::{AppState, AuthState, NodesState, UserState, TrafficState},
 };
 use crate::features::auth::{
     AuthAsGuestCommand, AuthRepository, AuthRepositoryImpl, ChangePasswordCommand,
@@ -61,13 +61,23 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
     let change_password = Arc::new(ChangePasswordCommand::new(auth_repository.clone()));
     let refresh_session = Arc::new(RefreshSessionCommand::new(auth_repository));
 
+    // Traffic
+    let realtime_publisher = Arc::new(crate::common::app::adapters::HttpCentrifugoClient::new(config.clone()));
+    let traffic_repository_impl = Arc::new(crate::common::app::adapters::TrafficRepositoryImpl::new(pool.clone(), realtime_publisher));
+    let traffic_repository: Arc<dyn crate::features::traffic::TrafficRepository> = traffic_repository_impl.clone();
+    let user_traffic_service: Arc<dyn UserTrafficService> = traffic_repository_impl;
+
+    let add_traffic = Arc::new(crate::features::traffic::AddTrafficCommand::new(traffic_repository.clone()));
+    let get_ws_tokens = Arc::new(crate::features::traffic::GetWsTokensCommand::new());
+    let traffic_state = TrafficState::new(add_traffic, get_ws_tokens);
+
     // User
     let user_repository: Arc<dyn UserRepository> = Arc::new(UserRepositoryImpl::new(pool.clone()));
-    let update_me = Arc::new(UpdateMeCommand::new(user_repository.clone()));
-    let get_me = Arc::new(GetMeQuery::new(user_repository.clone()));
-    let get_user_by_id = Arc::new(GetUserByIdQuery::new(user_repository.clone()));
-    let get_user_list = Arc::new(GetUserListQuery::new(user_repository.clone()));
-    let get_users = Arc::new(GetUsersQuery::new(user_repository.clone()));
+    let update_me = Arc::new(UpdateMeCommand::new(user_repository.clone(), traffic_repository.clone()));
+    let get_me = Arc::new(GetMeQuery::new(user_repository.clone(), traffic_repository.clone()));
+    let get_user_by_id = Arc::new(GetUserByIdQuery::new(user_repository.clone(), traffic_repository.clone()));
+    let get_user_list = Arc::new(GetUserListQuery::new(user_repository.clone(), traffic_repository.clone()));
+    let get_users = Arc::new(GetUsersQuery::new(user_repository.clone(), traffic_repository.clone()));
 
     let max_file_size_bytes = config.max_file_size_mb as usize * 1024 * 1024;
 
@@ -91,12 +101,9 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
 
     let nodes_repo: Arc<dyn NodeRepository> = Arc::new(PgNodeRepository::new(pool.clone()));
     let node_commander = Arc::new(WsCommanderImpl::new());
-    let user_traffic_service: Arc<dyn UserTrafficService> = Arc::new(
-        crate::common::app::adapters::UserTrafficServiceImpl::new(pool.clone())
-    );
     let nodes_state = NodesState::new(nodes_repo, node_commander, user_traffic_service);
 
-    let state = AppState::new(config, pool.clone(), auth_state, user_state, nodes_state);
+    let state = AppState::new(config, pool.clone(), auth_state, user_state, nodes_state, traffic_state);
 
     tracing::info!("Application state built");
 

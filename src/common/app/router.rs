@@ -29,6 +29,7 @@ use crate::{
         auth::user_auth_routes,
         nodes::{node_routes, ws_routes},
         user::user_routes,
+        traffic::traffic_routes,
     },
 };
 
@@ -63,6 +64,7 @@ pub fn create_router(state: AppState) -> Router {
     let protected_routes = Router::new()
         .nest("/user", user_routes())
         .nest("/nodes", node_routes())
+        .nest("/traffic", traffic_routes())
         // enforce JWT authentication
         .route_layer(middleware::from_fn_with_state(state.clone(), jwt::jwt_auth))
         // attach inspecter

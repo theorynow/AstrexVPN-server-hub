@@ -1,8 +1,6 @@
 CREATE TABLE users (
     id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username               VARCHAR(64) UNIQUE,
-    traffic_limit_bytes    BIGINT NOT NULL DEFAULT 26843545600,
-    traffic_used_bytes     BIGINT NOT NULL DEFAULT 0,
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
     modified_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );

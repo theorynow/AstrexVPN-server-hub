@@ -24,6 +24,9 @@ pub struct Config {
     pub max_file_size_mb: u32,
 
     pub node_auth_secret: String,
+
+    pub centrifugo_api_url: String,
+    pub centrifugo_api_key: String,
 }
 
 #[derive(Debug, Error)]
@@ -59,6 +62,11 @@ impl Config {
 
             node_auth_secret: env::var("NODE_AUTH_SECRET")
                 .unwrap_or_else(|_| "secret123".to_string()),
+
+            centrifugo_api_url: env::var("CENTRIFUGO_API_URL")
+                .unwrap_or_else(|_| "http://localhost:8000/api".to_string()),
+            centrifugo_api_key: env::var("CENTRIFUGO_API_KEY")
+                .unwrap_or_default(),
         };
 
         validate_sensitive_env("JWT_SECRET_KEY")?;

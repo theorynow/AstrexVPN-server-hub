@@ -200,3 +200,90 @@ async fn test_nodes_websocket_lifecycle() {
         Some(Ok(msg)) => panic!("Expected connection closure, got message: {:?}", msg),
     }
 }
+
+#[tokio::test]
+async fn test_nodes_websocket_edge_cases() {
+    dotenvy::dotenv().ok();
+    let _ = tracing_subscriber::fmt::try_init();
+
+    let config = Config::from_env().unwrap();
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&config.database_url)
+        .await
+        .unwrap();
+    run_database_migrations(&pool).await.unwrap();
+
+    let app_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let app_addr = app_listener.local_addr().unwrap();
+    let state = build_app_state(pool, config);
+    let app = create_router(state);
+    tokio::spawn(async move {
+        axum::serve(app_listener, app).await.unwrap();
+    });
+
+    let ws_url = format!("ws://{}/ws/node", app_addr);
+
+    // --- Case 1: First message is NOT Register (e.g. NodeMessage::Ping) ---
+    let (ws_stream1, _) = connect_async(&ws_url).await.unwrap();
+    let (mut sender1, mut receiver1) = ws_stream1.split();
+    
+    sender1
+        .send(Message::Text(serde_json::to_string(&NodeMessage::Ping).unwrap().into()))
+        .await
+        .unwrap();
+    
+    // Server should close connection without sending anything or closing cleanly
+    match receiver1.next().await {
+        None => {}
+        Some(Err(_)) => {}
+        Some(Ok(Message::Close(_))) => {}
+        Some(Ok(msg)) => panic!("Expected connection closure, got: {:?}", msg),
+    }
+
+    // --- Case 2: First message is unparseable JSON ---
+    let (ws_stream2, _) = connect_async(&ws_url).await.unwrap();
+    let (mut sender2, mut receiver2) = ws_stream2.split();
+    
+    sender2
+        .send(Message::Text("invalid json string here".into()))
+        .await
+        .unwrap();
+    
+    match receiver2.next().await {
+        None => {}
+        Some(Err(_)) => {}
+        Some(Ok(Message::Close(_))) => {}
+        Some(Ok(msg)) => panic!("Expected connection closure for invalid JSON, got: {:?}", msg),
+    }
+
+    // --- Case 3: Empty node_id in Register message ---
+    let (ws_stream3, _) = connect_async(&ws_url).await.unwrap();
+    let (mut sender3, mut receiver3) = ws_stream3.split();
+    
+    let bad_reg = NodeMessage::Register {
+        node_id: "".to_string(),
+        auth_secret: "secret".to_string(),
+        public_ip: "127.0.0.1".to_string(),
+        inbound_tags: vec![],
+    };
+    sender3
+        .send(Message::Text(serde_json::to_string(&bad_reg).unwrap().into()))
+        .await
+        .unwrap();
+
+    let msg = receiver3.next().await.unwrap().unwrap();
+    match msg {
+        Message::Text(text) => {
+            let hub_msg: HubMessage = serde_json::from_str(&text).unwrap();
+            match hub_msg {
+                HubMessage::AuthFailed { reason } => {
+                    assert!(reason.contains("empty") || reason.contains("validation"));
+                }
+                other => panic!("Expected AuthFailed for empty fields, got {:?}", other),
+            }
+        }
+        other => panic!("Expected Text message, got {:?}", other),
+    }
+}
+

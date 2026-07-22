@@ -31,7 +31,7 @@ async fn test_auth_routes_lifecycle() {
     // 2. Start the application router on an ephemeral port
     let app_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let app_addr = app_listener.local_addr().unwrap();
-    let state = build_app_state(pool.clone(), config);
+    let state = build_app_state(pool.clone(), config.clone());
     let app = create_router(state);
     tokio::spawn(async move {
         axum::serve(app_listener, app).await.unwrap();
@@ -242,7 +242,9 @@ async fn test_auth_routes_lifecycle() {
 
     // --- 7. Test UserTrafficService packet consumption ---
     use hub::features::nodes::application::ports::UserTrafficService;
-    let user_traffic_service = hub::common::app::adapters::UserTrafficServiceImpl::new(pool.clone());
+    use std::sync::Arc;
+    let publisher = Arc::new(hub::common::app::adapters::HttpCentrifugoClient::new(config.clone()));
+    let user_traffic_service: Arc<dyn UserTrafficService> = Arc::new(hub::common::app::adapters::TrafficRepositoryImpl::new(pool.clone(), publisher));
     
     // Get remaining traffic for guest user created earlier (user_id)
     let initial_remaining = user_traffic_service.get_remaining_traffic(&user_id).await.unwrap();

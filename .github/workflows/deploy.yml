@@ -79,6 +79,11 @@ jobs:
             cp -r observability /home/deployer/hub/observability
           fi
 
+          if [ -d centrifuge ]; then
+            rm -rf /home/deployer/hub/centrifuge
+            cp -r centrifuge /home/deployer/hub/centrifuge
+          fi
+
       - name: Debug deploy directory
         run: |
           ls -la /home/deployer/hub
@@ -109,6 +114,12 @@ jobs:
           GF_ADMIN_USER: ${{ vars.GF_ADMIN_USER || 'admin' }}
           GF_ADMIN_PASSWORD: ${{ secrets.GF_ADMIN_PASSWORD }}
           GRAFANA_EXTERNAL_PORT: ${{ vars.GRAFANA_EXTERNAL_PORT || '33000' }}
+
+          CENTRIFUGO_API_KEY: ${{ secrets.CENTRIFUGO_API_KEY }}
+          CENTRIFUGO_ADMIN_PASSWORD: ${{ secrets.CENTRIFUGO_ADMIN_PASSWORD }}
+          CENTRIFUGO_ADMIN_SECRET: ${{ secrets.CENTRIFUGO_ADMIN_SECRET }}
+          CENTRIFUGO_EXTERNAL_PORT: ${{ vars.CENTRIFUGO_EXTERNAL_PORT || '38000' }}
+          CENTRIFUGO_API_URL: ${{ vars.CENTRIFUGO_API_URL || 'http://centrifugo:8000/api' }}
         run: |
           # Verification of Required Secrets
           : "${POSTGRES_USER:?POSTGRES_USER secret is required}"
@@ -119,6 +130,9 @@ jobs:
           : "${ARGON2_SECRET_KEY:?ARGON2_SECRET_KEY secret is required}"
           : "${NODE_AUTH_SECRET:?NODE_AUTH_SECRET secret is required}"
           : "${GF_ADMIN_PASSWORD:?GF_ADMIN_PASSWORD secret is required}"
+          : "${CENTRIFUGO_API_KEY:?CENTRIFUGO_API_KEY secret is required}"
+          : "${CENTRIFUGO_ADMIN_PASSWORD:?CENTRIFUGO_ADMIN_PASSWORD secret is required}"
+          : "${CENTRIFUGO_ADMIN_SECRET:?CENTRIFUGO_ADMIN_SECRET secret is required}"
 
           SHORT_SHA="$(echo "$GITHUB_SHA" | cut -c1-7)"
 
@@ -150,6 +164,12 @@ jobs:
           GF_ADMIN_USER=${GF_ADMIN_USER}
           GF_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD}
           GRAFANA_EXTERNAL_PORT=${GRAFANA_EXTERNAL_PORT}
+
+          CENTRIFUGO_EXTERNAL_PORT=${CENTRIFUGO_EXTERNAL_PORT}
+          CENTRIFUGO_API_KEY=${CENTRIFUGO_API_KEY}
+          CENTRIFUGO_ADMIN_PASSWORD=${CENTRIFUGO_ADMIN_PASSWORD}
+          CENTRIFUGO_ADMIN_SECRET=${CENTRIFUGO_ADMIN_SECRET}
+          CENTRIFUGO_API_URL=${CENTRIFUGO_API_URL}
           EOF
 
           chmod 600 .env

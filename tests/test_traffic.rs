@@ -205,3 +205,218 @@ async fn test_traffic_packets_lifecycle() {
     let err_msg = res_fail.unwrap_err().to_string();
     assert!(err_msg.contains("no remaining traffic") || err_msg.contains("validation"));
 }
+
+#[tokio::test]
+async fn test_traffic_repository_and_command_validation() {
+    dotenvy::dotenv().ok();
+    let _ = tracing_subscriber::fmt::try_init();
+
+    let config = Config::from_env().unwrap();
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&config.database_url)
+        .await
+        .unwrap();
+    run_database_migrations(&pool).await.unwrap();
+
+    let state = build_app_state(pool.clone(), config.clone());
+    let add_traffic_cmd = state.traffic.add_traffic.clone();
+    
+    let fake_user_id = Uuid::new_v4().to_string();
+    
+    // 1. Get summary for non-existent user should be 0 total and 0 remaining
+    let publisher = std::sync::Arc::new(hub::common::app::adapters::HttpCentrifugoClient::new(config.clone()));
+    let traffic_repo = hub::common::app::adapters::TrafficRepositoryImpl::new(pool.clone(), publisher);
+    use hub::features::traffic::TrafficRepository;
+    let summary = traffic_repo.get_summary(&fake_user_id).await.unwrap();
+    assert_eq!(summary.total_bytes, 0);
+    assert_eq!(summary.remaining_bytes, 0);
+
+    // 2. Execute AddTrafficCommand with invalid <= 0 bytes should return ValidationError
+    let err_res = add_traffic_cmd.execute(&fake_user_id, 0).await;
+    assert!(err_res.is_err());
+    assert!(err_res.unwrap_err().to_string().contains("greater than zero"));
+
+    let err_res_neg = add_traffic_cmd.execute(&fake_user_id, -100).await;
+    assert!(err_res_neg.is_err());
+    assert!(err_res_neg.unwrap_err().to_string().contains("greater than zero"));
+}
+
+#[tokio::test]
+async fn test_traffic_centrifuge_publishing() {
+    dotenvy::dotenv().ok();
+    let _ = tracing_subscriber::fmt::try_init();
+
+    let config = Config::from_env().unwrap();
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&config.database_url)
+        .await
+        .unwrap();
+    run_database_migrations(&pool).await.unwrap();
+
+    // 1. Create a dummy user
+    let user_id = Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO users (id, username) VALUES ($1::uuid, $2)")
+        .bind(Uuid::parse_str(&user_id).unwrap())
+        .bind(format!("centrifuge-user-{}", Uuid::new_v4()))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // 2. Setup mock publisher
+    use hub::common::http::error::AppError;
+    use hub::features::traffic::TrafficRepository;
+    use hub::features::traffic::application::ports::RealtimePublisher;
+    use std::sync::Mutex;
+    struct MockPublisher {
+        publications: Mutex<Vec<(String, serde_json::Value)>>,
+    }
+    #[async_trait::async_trait]
+    impl RealtimePublisher for MockPublisher {
+        async fn publish(&self, channel: &str, payload: serde_json::Value) -> Result<(), AppError> {
+            self.publications.lock().unwrap().push((channel.to_string(), payload));
+            Ok(())
+        }
+    }
+
+    let mock_pub = std::sync::Arc::new(MockPublisher {
+        publications: Mutex::new(Vec::new()),
+    });
+
+    // 3. Create repository with mock publisher
+    let traffic_repo = hub::common::app::adapters::TrafficRepositoryImpl::new(pool.clone(), mock_pub.clone());
+
+    // 4. Add traffic packet (10 GB = 10737418240 bytes)
+    let ten_gb = 10 * 1024 * 1024 * 1024;
+    let _packet = traffic_repo.add_packet(&user_id, ten_gb).await.unwrap();
+
+    // Verify publication triggered by add_packet
+    {
+        let pubs = mock_pub.publications.lock().unwrap();
+        assert_eq!(pubs.len(), 1);
+        let (ref channel, ref payload) = pubs[0];
+        assert_eq!(channel, &format!("personal:{}", user_id));
+        assert_eq!(payload.get("traffic_total_bytes").unwrap().as_i64().unwrap(), ten_gb);
+        assert_eq!(payload.get("traffic_remaining_bytes").unwrap().as_i64().unwrap(), ten_gb);
+    }
+
+    // 5. Consume traffic (2 GB = 2147483648 bytes)
+    let two_gb: u64 = 2 * 1024 * 1024 * 1024;
+    let remaining = traffic_repo.consume(&user_id, two_gb).await.unwrap();
+    assert_eq!(remaining, (ten_gb - two_gb as i64) as u64);
+
+    // Verify publication triggered by consume
+    {
+        let pubs = mock_pub.publications.lock().unwrap();
+        assert_eq!(pubs.len(), 2);
+        let (ref channel, ref payload) = pubs[1];
+        assert_eq!(channel, &format!("personal:{}", user_id));
+        assert_eq!(payload.get("traffic_total_bytes").unwrap().as_i64().unwrap(), ten_gb);
+        assert_eq!(payload.get("traffic_remaining_bytes").unwrap().as_i64().unwrap(), (ten_gb - two_gb as i64));
+    }
+}
+
+#[tokio::test]
+async fn test_real_centrifugo_integration() {
+    dotenvy::dotenv().ok();
+    let _ = tracing_subscriber::fmt::try_init();
+
+    let config = Config::from_env().unwrap();
+    let jwt_secret = std::env::var("JWT_SECRET_KEY").unwrap_or_default();
+    println!("TEST JWT_SECRET_KEY: {}", jwt_secret);
+    
+    // Check if Centrifugo is running locally at port 38000
+    let centrifugo_addr = "127.0.0.1:38000";
+    if tokio::net::TcpStream::connect(centrifugo_addr).await.is_err() {
+        println!("Centrifugo is not running at {}, skipping real integration test.", centrifugo_addr);
+        return;
+    }
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&config.database_url)
+        .await
+        .unwrap();
+    run_database_migrations(&pool).await.unwrap();
+
+    // 1. Create a dummy user
+    let user_id = Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO users (id, username) VALUES ($1::uuid, $2)")
+        .bind(Uuid::parse_str(&user_id).unwrap())
+        .bind(format!("centrifuge-real-{}", Uuid::new_v4()))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // 2. Generate tokens using JWT_SECRET_KEY
+    let connection_token = hub::common::security::jwt::make_centrifugo_connect_token(&user_id).unwrap();
+    let channel = format!("personal:{}", user_id);
+    let subscription_token = hub::common::security::jwt::make_centrifugo_subscribe_token(&user_id, &channel).unwrap();
+
+    // 3. Connect to Centrifugo WebSocket
+    let ws_url = "ws://127.0.0.1:38000/connection/websocket";
+    let (ws_stream, _) = tokio_tungstenite::connect_async(ws_url).await.unwrap();
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+
+    // 4. Send Connect message
+    let connect_msg = serde_json::json!({
+        "connect": {
+            "token": connection_token
+        },
+        "id": 1
+    });
+    ws_sender
+        .send(tokio_tungstenite::tungstenite::Message::Text(
+            serde_json::to_string(&connect_msg).unwrap().into(),
+        ))
+        .await
+        .unwrap();
+
+    // Read Connect reply
+    let msg = ws_receiver.next().await.unwrap().unwrap();
+    let msg_text = msg.to_text().unwrap();
+    println!("Connect reply: {}", msg_text);
+    assert!(msg_text.contains("\"connect\"") && msg_text.contains("\"id\":1"));
+
+    // 5. Send Subscribe message
+    let subscribe_msg = serde_json::json!({
+        "subscribe": {
+            "channel": channel,
+            "token": subscription_token
+        },
+        "id": 2
+    });
+    ws_sender
+        .send(tokio_tungstenite::tungstenite::Message::Text(
+            serde_json::to_string(&subscribe_msg).unwrap().into(),
+        ))
+        .await
+        .unwrap();
+
+    // Read Subscribe reply
+    let msg = ws_receiver.next().await.unwrap().unwrap();
+    let msg_text = msg.to_text().unwrap();
+    println!("Subscribe reply: {}", msg_text);
+    assert!(msg_text.contains("\"subscribe\"") && msg_text.contains("\"id\":2"));
+
+    // 6. Setup client and publish event via HTTP API
+    let centrifugo_client = hub::common::app::adapters::HttpCentrifugoClient::new(config);
+    use hub::features::traffic::application::ports::RealtimePublisher;
+    let payload = serde_json::json!({
+        "traffic_total_bytes": 1000,
+        "traffic_remaining_bytes": 800
+    });
+    centrifugo_client.publish(&channel, payload).await.unwrap();
+
+    // 7. Receive Push message over WS
+    let msg = ws_receiver.next().await.unwrap().unwrap();
+    let msg_text = msg.to_text().unwrap();
+    println!("Received push message: {}", msg_text);
+    assert!(msg_text.contains("\"push\""));
+    assert!(msg_text.contains("1000"));
+    assert!(msg_text.contains("800"));
+}
+
+
+

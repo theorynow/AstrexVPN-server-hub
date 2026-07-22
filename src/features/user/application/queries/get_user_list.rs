@@ -2,16 +2,20 @@ use std::sync::Arc;
 
 use crate::{
     common::http::error::AppError,
-    features::user::{SearchUser, UserProfile, UserRepository},
+    features::{
+        traffic::application::ports::TrafficRepository,
+        user::{SearchUser, UserProfile, UserRepository},
+    },
 };
 
 pub struct GetUserListQuery {
     repo: Arc<dyn UserRepository>,
+    traffic_repo: Arc<dyn TrafficRepository>,
 }
 
 impl GetUserListQuery {
-    pub fn new(repo: Arc<dyn UserRepository>) -> Self {
-        Self { repo }
+    pub fn new(repo: Arc<dyn UserRepository>, traffic_repo: Arc<dyn TrafficRepository>) -> Self {
+        Self { repo, traffic_repo }
     }
 
     pub async fn execute(&self, search: SearchUser) -> Result<Vec<UserProfile>, AppError> {
@@ -19,7 +23,8 @@ impl GetUserListQuery {
         let mut profiles = Vec::with_capacity(users.len());
 
         for user in users {
-            profiles.push(UserProfile::resolve(user).await?);
+            let summary = self.traffic_repo.get_summary(&user.id).await?;
+            profiles.push(UserProfile::resolve(user, summary).await?);
         }
 
         Ok(profiles)

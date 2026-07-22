@@ -136,4 +136,62 @@ async fn test_user_routes_lifecycle() {
             .unwrap(),
         updated_username
     );
+
+    // --- 4. Test POST /traffic/add ---
+    let add_traffic_resp = client
+        .post(format!("{}/traffic/add", base_url))
+        .bearer_auth(&access_token1)
+        .json(&json!({
+            "user_id": user_id1,
+            "gb": 10
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(add_traffic_resp.status(), StatusCode::OK);
+    let add_traffic_body: RestApiResponse<Value> = add_traffic_resp.json().await.unwrap();
+    let traffic_limit_bytes = add_traffic_body
+        .0
+        .data
+        .unwrap()
+        .get("traffic_limit_bytes")
+        .unwrap()
+        .as_i64()
+        .unwrap();
+    assert_eq!(traffic_limit_bytes, 10737418240); // 10 GB
+
+    // Check GET /user/me again to verify traffic total has increased to 35 GB (25 GB initial + 10 GB added)
+    let me_resp_after = client
+        .get(format!("{}/user/me", base_url))
+        .bearer_auth(&access_token1)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(me_resp_after.status(), StatusCode::OK);
+    let me_body_after: RestApiResponse<Value> = me_resp_after.json().await.unwrap();
+    let me_data_after = me_body_after.0.data.unwrap();
+    let total_bytes = me_data_after.get("traffic_total_bytes").unwrap().as_i64().unwrap();
+    let remaining_bytes = me_data_after.get("traffic_remaining_bytes").unwrap().as_i64().unwrap();
+    assert_eq!(total_bytes, 37580963840); // 35 GB
+    assert_eq!(remaining_bytes, 37580963840); // 35 GB
+
+    // --- 5. Test GET /traffic/ws-tokens ---
+    let ws_tokens_resp = client
+        .get(format!("{}/traffic/ws-tokens", base_url))
+        .bearer_auth(&access_token1)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ws_tokens_resp.status(), StatusCode::OK);
+    let ws_tokens_body: RestApiResponse<Value> = ws_tokens_resp.json().await.unwrap();
+    let ws_tokens_data = ws_tokens_body.0.data.unwrap();
+    
+    let connection_token = ws_tokens_data.get("connection_token").unwrap().as_str().unwrap();
+    let subscription_token = ws_tokens_data.get("subscription_token").unwrap().as_str().unwrap();
+    let channel = ws_tokens_data.get("channel").unwrap().as_str().unwrap();
+    
+    assert!(!connection_token.is_empty());
+    assert!(!subscription_token.is_empty());
+    assert_eq!(channel, format!("personal:{}", user_id1));
 }
+
