@@ -69,15 +69,16 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
 
     let add_traffic = Arc::new(crate::features::traffic::AddTrafficCommand::new(traffic_repository.clone()));
     let get_ws_tokens = Arc::new(crate::features::traffic::GetWsTokensCommand::new());
-    let traffic_state = TrafficState::new(add_traffic, get_ws_tokens);
+    let get_summary = Arc::new(crate::features::traffic::GetTrafficSummaryQuery::new(traffic_repository.clone()));
+    let traffic_state = TrafficState::new(add_traffic, get_ws_tokens, get_summary);
 
     // User
     let user_repository: Arc<dyn UserRepository> = Arc::new(UserRepositoryImpl::new(pool.clone()));
-    let update_me = Arc::new(UpdateMeCommand::new(user_repository.clone(), traffic_repository.clone()));
-    let get_me = Arc::new(GetMeQuery::new(user_repository.clone(), traffic_repository.clone()));
-    let get_user_by_id = Arc::new(GetUserByIdQuery::new(user_repository.clone(), traffic_repository.clone()));
-    let get_user_list = Arc::new(GetUserListQuery::new(user_repository.clone(), traffic_repository.clone()));
-    let get_users = Arc::new(GetUsersQuery::new(user_repository.clone(), traffic_repository.clone()));
+    let update_me = Arc::new(UpdateMeCommand::new(user_repository.clone()));
+    let get_me = Arc::new(GetMeQuery::new(user_repository.clone()));
+    let get_user_by_id = Arc::new(GetUserByIdQuery::new(user_repository.clone()));
+    let get_user_list = Arc::new(GetUserListQuery::new(user_repository.clone()));
+    let get_users = Arc::new(GetUsersQuery::new(user_repository.clone()));
 
     let max_file_size_bytes = config.max_file_size_mb as usize * 1024 * 1024;
 

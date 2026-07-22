@@ -12,7 +12,7 @@ sequenceDiagram
     participant Hub API
     participant Centrifugo WS
 
-    Client->>Hub API: GET /user/me (Load profile & initial traffic stats)
+    Client->>Hub API: GET /traffic/me (Load initial traffic stats)
     Hub API-->>Client: 200 OK (traffic_total_bytes, traffic_remaining_bytes)
     
     Client->>Hub API: GET /traffic/ws-tokens (Request tokens)
@@ -35,7 +35,7 @@ sequenceDiagram
     
     alt Connection Dropped
         Centrifugo WS--xClient: Disconnected
-        Client->>Hub API: GET /user/me (Fetch fresh state / sync values)
+        Client->>Hub API: GET /traffic/me (Fetch fresh state / sync values)
         Client->>Hub API: GET /traffic/ws-tokens (Get fresh tokens)
         Client->>Centrifugo WS: Re-establish connection & Re-subscribe
     end
@@ -154,4 +154,4 @@ Whenever user traffic is consumed by a VPN node or new traffic is added via the 
 > [!IMPORTANT]
 > **No History/Recovery:** The `personal` channel namespace has history disabled.
 >
-> When the client disconnects and reconnects (e.g. due to internet handovers, sleep mode, or network dropouts), it **must not** attempt recovery. Instead, it must make a standard HTTP request to `GET /user/me` to synchronize the absolute total/remaining traffic bytes, fetch fresh tokens from `GET /traffic/ws-tokens`, and perform the handshake sequence again.
+> When the client disconnects and reconnects (e.g. due to internet handovers, sleep mode, or network dropouts), it **must not** attempt recovery. Instead, it must make a standard HTTP request to `GET /traffic/me` to synchronize the absolute total/remaining traffic bytes, fetch fresh tokens from `GET /traffic/ws-tokens`, and perform the handshake sequence again.

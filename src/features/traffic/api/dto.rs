@@ -35,3 +35,9 @@ pub struct CentrifugeTokenDto {
     pub channel: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct TrafficSummaryDto {
+    pub traffic_total_bytes: i64,
+    pub traffic_remaining_bytes: i64,
+}
+

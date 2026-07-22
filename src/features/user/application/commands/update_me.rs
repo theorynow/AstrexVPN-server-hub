@@ -2,20 +2,16 @@ use std::sync::Arc;
 
 use crate::{
     common::http::error::AppError,
-    features::{
-        traffic::application::ports::TrafficRepository,
-        user::{UpdateUserProfile, UserProfile, UserRepository},
-    },
+    features::user::{UpdateUserProfile, UserProfile, UserRepository},
 };
 
 pub struct UpdateMeCommand {
     repo: Arc<dyn UserRepository>,
-    traffic_repo: Arc<dyn TrafficRepository>,
 }
 
 impl UpdateMeCommand {
-    pub fn new(repo: Arc<dyn UserRepository>, traffic_repo: Arc<dyn TrafficRepository>) -> Self {
-        Self { repo, traffic_repo }
+    pub fn new(repo: Arc<dyn UserRepository>) -> Self {
+        Self { repo }
     }
 
     pub async fn execute(
@@ -30,9 +26,7 @@ impl UpdateMeCommand {
             .await?
             .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
-        let summary = self.traffic_repo.get_summary(&user_id).await?;
-
-        UserProfile::resolve(user, summary).await
+        Ok(UserProfile::new(user))
     }
 }
 

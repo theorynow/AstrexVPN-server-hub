@@ -160,18 +160,18 @@ async fn test_user_routes_lifecycle() {
         .unwrap();
     assert_eq!(traffic_limit_bytes, 10737418240); // 10 GB
 
-    // Check GET /user/me again to verify traffic total has increased to 35 GB (25 GB initial + 10 GB added)
-    let me_resp_after = client
-        .get(format!("{}/user/me", base_url))
+    // Check GET /traffic/me to verify traffic total has increased to 35 GB (25 GB initial + 10 GB added)
+    let traffic_resp = client
+        .get(format!("{}/traffic/me", base_url))
         .bearer_auth(&access_token1)
         .send()
         .await
         .unwrap();
-    assert_eq!(me_resp_after.status(), StatusCode::OK);
-    let me_body_after: RestApiResponse<Value> = me_resp_after.json().await.unwrap();
-    let me_data_after = me_body_after.0.data.unwrap();
-    let total_bytes = me_data_after.get("traffic_total_bytes").unwrap().as_i64().unwrap();
-    let remaining_bytes = me_data_after.get("traffic_remaining_bytes").unwrap().as_i64().unwrap();
+    assert_eq!(traffic_resp.status(), StatusCode::OK);
+    let traffic_body: RestApiResponse<Value> = traffic_resp.json().await.unwrap();
+    let traffic_data = traffic_body.0.data.unwrap();
+    let total_bytes = traffic_data.get("traffic_total_bytes").unwrap().as_i64().unwrap();
+    let remaining_bytes = traffic_data.get("traffic_remaining_bytes").unwrap().as_i64().unwrap();
     assert_eq!(total_bytes, 37580963840); // 35 GB
     assert_eq!(remaining_bytes, 37580963840); // 35 GB
 

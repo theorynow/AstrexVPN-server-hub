@@ -8,8 +8,6 @@ use crate::features::user::UserProfile;
 pub struct UserDto {
     pub id: String,
     pub username: String,
-    pub traffic_total_bytes: i64,
-    pub traffic_remaining_bytes: i64,
     #[serde(with = "crate::common::serde::ts_format::option")]
     pub created_at: Option<DateTime<Utc>>,
     #[serde(with = "crate::common::serde::ts_format::option")]
@@ -21,8 +19,6 @@ impl From<UserProfile> for UserDto {
         Self {
             id: user.id,
             username: user.username,
-            traffic_total_bytes: user.traffic_total_bytes,
-            traffic_remaining_bytes: user.traffic_remaining_bytes,
             created_at: user.created_at,
             modified_at: user.modified_at,
         }
