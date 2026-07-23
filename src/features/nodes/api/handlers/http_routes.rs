@@ -14,7 +14,7 @@ use crate::{
             add_user_to_node::AddUserToNodeCommand,
             remove_user_from_node::RemoveUserFromNodeCommand,
         },
-        models::node_dto::NodeDto,
+        models::node_dto::{HysteriaConfigDto, NodeDto, XrayConfigDto},
         queries::get_active_nodes::GetActiveNodesQuery,
     },
 };
@@ -26,7 +26,7 @@ use crate::{
         add_user_to_node,
         remove_user_from_node,
     ),
-    components(schemas(NodeDto)),
+    components(schemas(NodeDto, XrayConfigDto, HysteriaConfigDto)),
     tags(
         (name = "Nodes", description = "VPN Node management endpoints. Note: WebSocket agent connection is at /ws/node")
     ),

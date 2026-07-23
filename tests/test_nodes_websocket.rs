@@ -14,6 +14,8 @@ use std::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
 
+use hub::features::nodes::domain::model::{HysteriaConfig, XrayConfig};
+
 #[tokio::test]
 async fn test_nodes_websocket_lifecycle() {
     dotenvy::dotenv().ok();
@@ -48,12 +50,25 @@ async fn test_nodes_websocket_lifecycle() {
     let (ws_stream, _) = connect_async(&ws_url).await.unwrap();
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
-    // Send register message
+    // Send register message with full multilang & xray/hysteria configs
     let reg_msg = NodeMessage::Register {
         node_id: node_id.clone(),
         auth_secret: config.node_auth_secret.clone(),
         public_ip: "127.0.0.1".to_string(),
         inbound_tags: vec!["vless-in".to_string()],
+        name_en: Some("Germany".to_string()),
+        name_ru: Some("Германия".to_string()),
+        country_flag: Some("🇩🇪".to_string()),
+        xray: Some(XrayConfig {
+            port: 443,
+            sni: "www.yahoo.com".to_string(),
+            public_key: "AW1VX2QqSTaHjqtnOR3j5SWStzqh5T3Ly7SjUzC_zU8".to_string(),
+            short_id: "18ab3ba173244769".to_string(),
+        }),
+        hysteria: Some(HysteriaConfig {
+            port: 443,
+            sni: "fuckbook.pro".to_string(),
+        }),
     };
     ws_sender
         .send(Message::Text(
@@ -75,9 +90,80 @@ async fn test_nodes_websocket_lifecycle() {
         other => panic!("Expected Text message, got {:?}", other),
     }
 
-    // Verify node is online in database
+    // Verify node is online in database and has all fields
     let node = node_repo.find_by_id(&node_id).await.unwrap().unwrap();
     assert_eq!(node.status, NodeStatus::Online);
+    assert_eq!(node.name_en, "Germany");
+    assert_eq!(node.name_ru, "Германия");
+    assert_eq!(node.country_flag, "🇩🇪");
+    assert_eq!(
+        node.xray,
+        Some(XrayConfig {
+            port: 443,
+            sni: "www.yahoo.com".to_string(),
+            public_key: "AW1VX2QqSTaHjqtnOR3j5SWStzqh5T3Ly7SjUzC_zU8".to_string(),
+            short_id: "18ab3ba173244769".to_string(),
+        })
+    );
+    assert_eq!(
+        node.hysteria,
+        Some(HysteriaConfig {
+            port: 443,
+            sni: "fuckbook.pro".to_string(),
+        })
+    );
+
+    // Register & Login a test user to obtain JWT token for HTTP requests
+    let http_client = reqwest::Client::new();
+    let test_user_name = format!("testuser-{}", Uuid::new_v4());
+    let _ = http_client
+        .post(format!("http://{}/auth/register", app_addr))
+        .json(&serde_json::json!({
+            "username": test_user_name,
+            "password": "password123"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let login_res = http_client
+        .post(format!("http://{}/auth/login", app_addr))
+        .json(&serde_json::json!({
+            "username": test_user_name,
+            "password": "password123"
+        }))
+        .send()
+        .await
+        .unwrap();
+    let login_json: serde_json::Value = login_res.json().await.unwrap();
+    let token = login_json["data"]["access_token"].as_str().unwrap();
+
+    // Verify HTTP GET /nodes/active returns active nodes with name_en, name_ru, country_flag, xray, hysteria and NO status field
+    let res = http_client
+        .get(format!("http://{}/nodes/active", app_addr))
+        .bearer_auth(token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), reqwest::StatusCode::OK);
+    let body: serde_json::Value = res.json().await.unwrap();
+    let data = body.get("data").unwrap().as_array().unwrap();
+    let active_node_json = data.iter().find(|n| n.get("id").unwrap().as_str() == Some(&node_id)).unwrap();
+
+    assert_eq!(active_node_json.get("name_en").unwrap().as_str().unwrap(), "Germany");
+    assert_eq!(active_node_json.get("name_ru").unwrap().as_str().unwrap(), "Германия");
+    assert_eq!(active_node_json.get("country_flag").unwrap().as_str().unwrap(), "🇩🇪");
+    assert!(active_node_json.get("status").is_none()); // status must be removed!
+
+    let xray_json = active_node_json.get("xray").unwrap();
+    assert_eq!(xray_json.get("port").unwrap().as_u64().unwrap(), 443);
+    assert_eq!(xray_json.get("sni").unwrap().as_str().unwrap(), "www.yahoo.com");
+    assert_eq!(xray_json.get("public_key").unwrap().as_str().unwrap(), "AW1VX2QqSTaHjqtnOR3j5SWStzqh5T3Ly7SjUzC_zU8");
+    assert_eq!(xray_json.get("short_id").unwrap().as_str().unwrap(), "18ab3ba173244769");
+
+    let hysteria_json = active_node_json.get("hysteria").unwrap();
+    assert_eq!(hysteria_json.get("port").unwrap().as_u64().unwrap(), 443);
+    assert_eq!(hysteria_json.get("sni").unwrap().as_str().unwrap(), "fuckbook.pro");
 
     // --- Case 2: Send Ping and receive Pong ---
     ws_sender
@@ -165,6 +251,11 @@ async fn test_nodes_websocket_lifecycle() {
         auth_secret: "wrong-secret".to_string(),
         public_ip: "127.0.0.1".to_string(),
         inbound_tags: vec![],
+        name_en: None,
+        name_ru: None,
+        country_flag: None,
+        xray: None,
+        hysteria: None,
     };
     ws_sender
         .send(Message::Text(
@@ -266,6 +357,11 @@ async fn test_nodes_websocket_edge_cases() {
         auth_secret: "secret".to_string(),
         public_ip: "127.0.0.1".to_string(),
         inbound_tags: vec![],
+        name_en: None,
+        name_ru: None,
+        country_flag: None,
+        xray: None,
+        hysteria: None,
     };
     sender3
         .send(Message::Text(serde_json::to_string(&bad_reg).unwrap().into()))

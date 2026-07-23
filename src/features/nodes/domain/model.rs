@@ -31,10 +31,28 @@ impl std::str::FromStr for NodeStatus {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct XrayConfig {
+    pub port: u16,
+    pub sni: String,
+    pub public_key: String,
+    pub short_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HysteriaConfig {
+    pub port: u16,
+    pub sni: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
     pub id: NodeId,
-    pub name: String,
+    pub name_en: String,
+    pub name_ru: String,
+    pub country_flag: String,
+    pub xray: Option<XrayConfig>,
+    pub hysteria: Option<HysteriaConfig>,
     pub status: NodeStatus,
     pub last_seen_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,

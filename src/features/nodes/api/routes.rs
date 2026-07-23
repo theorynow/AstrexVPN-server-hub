@@ -13,6 +13,7 @@ use crate::{
 
 pub fn node_routes() -> Router<AppState> {
     Router::new()
+        .route("/", get(get_active_nodes))
         .route("/active", get(get_active_nodes))
         .route("/{node_id}", post(add_user_to_node))
         .route(

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::features::nodes::domain::model::{HysteriaConfig, XrayConfig};
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum NodeMessage {
@@ -9,6 +11,16 @@ pub enum NodeMessage {
         auth_secret: String,
         public_ip: String,
         inbound_tags: Vec<String>,
+        #[serde(default)]
+        name_en: Option<String>,
+        #[serde(default)]
+        name_ru: Option<String>,
+        #[serde(default)]
+        country_flag: Option<String>,
+        #[serde(default)]
+        xray: Option<XrayConfig>,
+        #[serde(default)]
+        hysteria: Option<HysteriaConfig>,
     },
     TrafficReport {
         user_bytes: HashMap<String, u64>,

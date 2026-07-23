@@ -56,13 +56,23 @@ async fn handle_socket(socket: WebSocket, state: crate::common::app::state::AppS
     };
 
     // First message must be NodeMessage::Register
-    let (node_id, auth_secret, public_ip, inbound_tags) = match first_msg {
+    let (node_id, auth_secret, public_ip, inbound_tags, name_en, name_ru, country_flag, xray, hysteria) = match first_msg {
         NodeMessage::Register {
             node_id,
             auth_secret,
             public_ip,
             inbound_tags,
-        } => (node_id, auth_secret, public_ip, inbound_tags),
+            name_en,
+            name_ru,
+            country_flag,
+            xray,
+            hysteria,
+        } => {
+            let name_en = name_en.filter(|s| !s.is_empty()).unwrap_or_else(|| format!("Server {}", node_id));
+            let name_ru = name_ru.filter(|s| !s.is_empty()).unwrap_or_else(|| format!("Сервер {}", node_id));
+            let country_flag = country_flag.filter(|s| !s.is_empty()).unwrap_or_else(|| "🌐".to_string());
+            (node_id, auth_secret, public_ip, inbound_tags, name_en, name_ru, country_flag, xray, hysteria)
+        }
         _ => {
             tracing::warn!("First message was not a Register message");
             return;
@@ -86,7 +96,10 @@ async fn handle_socket(socket: WebSocket, state: crate::common::app::state::AppS
         state.config.node_auth_secret.clone(),
     );
 
-    if let Err(e) = connect_node_cmd.execute(&node_id, &auth_secret).await {
+    if let Err(e) = connect_node_cmd
+        .execute(&node_id, &auth_secret, &name_en, &name_ru, &country_flag, xray, hysteria)
+        .await
+    {
         tracing::warn!(node_id = %node_id, error = %e, "Node authentication failed");
         let response = HubMessage::AuthFailed {
             reason: e.to_string(),

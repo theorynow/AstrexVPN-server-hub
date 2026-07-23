@@ -5,7 +5,7 @@ use sqlx::{FromRow, PgPool};
 use crate::{
     common::http::error::AppError,
     features::nodes::domain::{
-        model::{Node, NodeStatus},
+        model::{HysteriaConfig, Node, NodeStatus, XrayConfig},
         ports::node_repository::NodeRepository,
     },
 };
@@ -24,7 +24,11 @@ impl PgNodeRepository {
 #[derive(Debug, FromRow)]
 struct NodeRow {
     id: String,
-    name: String,
+    name_en: String,
+    name_ru: String,
+    country_flag: String,
+    xray: Option<sqlx::types::Json<XrayConfig>>,
+    hysteria: Option<sqlx::types::Json<HysteriaConfig>>,
     status: String,
     last_seen_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
@@ -35,7 +39,11 @@ impl From<NodeRow> for Node {
     fn from(row: NodeRow) -> Self {
         Self {
             id: row.id,
-            name: row.name,
+            name_en: row.name_en,
+            name_ru: row.name_ru,
+            country_flag: row.country_flag,
+            xray: row.xray.map(|j| j.0),
+            hysteria: row.hysteria.map(|j| j.0),
             status: row.status.parse().unwrap(),
             last_seen_at: row.last_seen_at,
             created_at: row.created_at,
@@ -49,17 +57,25 @@ impl NodeRepository for PgNodeRepository {
     async fn save(&self, node: &Node) -> Result<(), AppError> {
         sqlx::query(
             r#"
-            INSERT INTO nodes (id, name, status, last_seen_at, created_at, modified_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO nodes (id, name_en, name_ru, country_flag, xray, hysteria, status, last_seen_at, created_at, modified_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT (id) DO UPDATE SET
-                name = EXCLUDED.name,
+                name_en = EXCLUDED.name_en,
+                name_ru = EXCLUDED.name_ru,
+                country_flag = EXCLUDED.country_flag,
+                xray = EXCLUDED.xray,
+                hysteria = EXCLUDED.hysteria,
                 status = EXCLUDED.status,
                 last_seen_at = EXCLUDED.last_seen_at,
                 modified_at = EXCLUDED.modified_at
             "#,
         )
         .bind(&node.id)
-        .bind(&node.name)
+        .bind(&node.name_en)
+        .bind(&node.name_ru)
+        .bind(&node.country_flag)
+        .bind(node.xray.as_ref().map(sqlx::types::Json))
+        .bind(node.hysteria.as_ref().map(sqlx::types::Json))
         .bind(node.status.to_string())
         .bind(node.last_seen_at)
         .bind(node.created_at)
@@ -73,7 +89,7 @@ impl NodeRepository for PgNodeRepository {
     async fn find_by_id(&self, id: &str) -> Result<Option<Node>, AppError> {
         let row = sqlx::query_as::<_, NodeRow>(
             r#"
-            SELECT id, name, status, last_seen_at, created_at, modified_at
+            SELECT id, name_en, name_ru, country_flag, xray, hysteria, status, last_seen_at, created_at, modified_at
             FROM nodes
             WHERE id = $1
             "#,
@@ -125,7 +141,7 @@ impl NodeRepository for PgNodeRepository {
     async fn get_active_nodes(&self) -> Result<Vec<Node>, AppError> {
         let rows = sqlx::query_as::<_, NodeRow>(
             r#"
-            SELECT id, name, status, last_seen_at, created_at, modified_at
+            SELECT id, name_en, name_ru, country_flag, xray, hysteria, status, last_seen_at, created_at, modified_at
             FROM nodes
             WHERE status = 'online'
             "#,

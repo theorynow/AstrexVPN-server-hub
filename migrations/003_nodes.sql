@@ -1,6 +1,10 @@
 CREATE TABLE nodes (
     id            VARCHAR(64) PRIMARY KEY,
-    name          VARCHAR(255) NOT NULL,
+    name_en       VARCHAR(255) NOT NULL,
+    name_ru       VARCHAR(255) NOT NULL,
+    country_flag  VARCHAR(32) NOT NULL,
+    xray          JSONB,
+    hysteria      JSONB,
     status        VARCHAR(32) NOT NULL DEFAULT 'offline',
     last_seen_at  TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),

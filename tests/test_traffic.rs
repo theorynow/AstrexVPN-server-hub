@@ -85,6 +85,11 @@ async fn test_traffic_packets_lifecycle() {
         auth_secret: config.node_auth_secret.clone(),
         public_ip: "127.0.0.1".to_string(),
         inbound_tags: vec!["vless-in".to_string()],
+        name_en: None,
+        name_ru: None,
+        country_flag: None,
+        xray: None,
+        hysteria: None,
     };
     ws_sender
         .send(Message::Text(serde_json::to_string(&reg_msg).unwrap().into()))
