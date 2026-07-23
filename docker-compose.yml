@@ -24,6 +24,7 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-local-env-jwt-secret-32-bytes}
       ARGON2_SECRET_KEY: ${ARGON2_SECRET_KEY:-change-me-in-local-env-argon2-secret-32}
       HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-change-me-in-local-env-hmac-secret-32}
+      NODE_AUTH_SECRET: ${NODE_AUTH_SECRET:-secret123}
       CENTRIFUGO_API_URL: ${CENTRIFUGO_API_URL:-http://centrifugo:8000/api}
       CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:-CHANGE_ME_API_KEY}
     depends_on:
