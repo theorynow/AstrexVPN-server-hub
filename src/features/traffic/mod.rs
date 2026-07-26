@@ -7,6 +7,8 @@ pub use application::commands::{
     add_traffic::AddTrafficCommand,
     consume_traffic::ConsumeTrafficCommand,
     get_ws_tokens::GetWsTokensCommand,
+    set_traffic::SetTrafficCommand,
+    subtract_traffic::SubtractTrafficCommand,
 };
 pub use application::queries::{
     get_remaining_traffic::GetRemainingTrafficQuery,

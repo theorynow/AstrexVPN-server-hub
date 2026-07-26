@@ -67,12 +67,20 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
     let traffic_repository: Arc<dyn crate::features::traffic::TrafficRepository> = pg_traffic_repo.clone();
 
     let add_traffic = Arc::new(crate::features::traffic::AddTrafficCommand::new(traffic_repository.clone()));
+    let subtract_traffic = Arc::new(crate::features::traffic::SubtractTrafficCommand::new(traffic_repository.clone()));
+    let set_traffic = Arc::new(crate::features::traffic::SetTrafficCommand::new(traffic_repository.clone()));
     let consume_traffic = Arc::new(crate::features::traffic::ConsumeTrafficCommand::new(traffic_repository.clone()));
     let get_ws_tokens = Arc::new(crate::features::traffic::GetWsTokensCommand::new());
     let get_summary = Arc::new(crate::features::traffic::GetTrafficSummaryQuery::new(traffic_repository.clone()));
     let get_remaining_traffic = Arc::new(crate::features::traffic::GetRemainingTrafficQuery::new(traffic_repository.clone()));
 
-    let traffic_state = TrafficState::new(add_traffic, get_ws_tokens, get_summary);
+    let traffic_state = TrafficState::new(
+        add_traffic,
+        subtract_traffic,
+        set_traffic,
+        get_ws_tokens,
+        get_summary,
+    );
 
     // Cross-feature adapter for Nodes -> Traffic
     let user_traffic_service: Arc<dyn UserTrafficService> = Arc::new(

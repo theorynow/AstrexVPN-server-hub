@@ -423,5 +423,57 @@ async fn test_real_centrifugo_integration() {
     assert!(msg_text.contains("800"));
 }
 
+#[tokio::test]
+async fn test_subtract_and_set_traffic_commands() {
+    dotenvy::dotenv().ok();
+    let _ = tracing_subscriber::fmt::try_init();
+
+    let config = Config::from_env().unwrap();
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&config.database_url)
+        .await
+        .unwrap();
+    run_database_migrations(&pool).await.unwrap();
+
+    let state = build_app_state(pool.clone(), config.clone());
+    let user_id = Uuid::new_v4().to_string();
+
+    // Insert test user
+    sqlx::query("INSERT INTO users (id, username) VALUES ($1::uuid, $2)")
+        .bind(Uuid::parse_str(&user_id).unwrap())
+        .bind(format!("sub-set-user-{}", Uuid::new_v4()))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // 1. Add 1000 MB
+    let one_thousand_mb_bytes = 1000 * 1024 * 1024;
+    state.traffic.add_traffic.execute(&user_id, one_thousand_mb_bytes).await.unwrap();
+
+    let summary = state.traffic.get_summary.execute(&user_id).await.unwrap();
+    assert_eq!(summary.remaining_bytes, one_thousand_mb_bytes);
+
+    // 2. Subtract 400 MB
+    let four_hundred_mb_bytes = 400 * 1024 * 1024;
+    let summary_after_sub = state.traffic.subtract_traffic.execute(&user_id, four_hundred_mb_bytes).await.unwrap();
+    assert_eq!(summary_after_sub.remaining_bytes, (1000 - 400) * 1024 * 1024);
+
+    // 3. Subtract 0 bytes should return error
+    let err_sub = state.traffic.subtract_traffic.execute(&user_id, 0).await;
+    assert!(err_sub.is_err());
+
+    // 4. Set traffic to 2000 MB (increase)
+    let two_thousand_mb_bytes = 2000 * 1024 * 1024;
+    let summary_after_set_inc = state.traffic.set_traffic.execute(&user_id, two_thousand_mb_bytes).await.unwrap();
+    assert_eq!(summary_after_set_inc.remaining_bytes, two_thousand_mb_bytes as i64);
+
+    // 5. Set traffic to 500 MB (decrease)
+    let five_hundred_mb_bytes = 500 * 1024 * 1024;
+    let summary_after_set_dec = state.traffic.set_traffic.execute(&user_id, five_hundred_mb_bytes).await.unwrap();
+    assert_eq!(summary_after_set_dec.remaining_bytes, five_hundred_mb_bytes as i64);
+}
+
+
 
 

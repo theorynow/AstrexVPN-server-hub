@@ -4,14 +4,30 @@ use utoipa::{
     OpenApi,
 };
 
-use crate::common::app::state::AppState;
+use super::dto::{
+    AddTrafficDto, CentrifugeTokenDto, SetTrafficDto, SubtractTrafficDto, TrafficPacketDto,
+    TrafficSummaryDto,
+};
 use super::handlers;
-use super::dto::{AddTrafficDto, TrafficPacketDto, CentrifugeTokenDto, TrafficSummaryDto};
+use crate::common::app::state::AppState;
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(handlers::add_traffic, handlers::get_ws_tokens, handlers::get_my_traffic),
-    components(schemas(AddTrafficDto, TrafficPacketDto, CentrifugeTokenDto, TrafficSummaryDto)),
+    paths(
+        handlers::add_traffic,
+        handlers::subtract_traffic,
+        handlers::set_traffic,
+        handlers::get_ws_tokens,
+        handlers::get_my_traffic
+    ),
+    components(schemas(
+        AddTrafficDto,
+        SubtractTrafficDto,
+        SetTrafficDto,
+        TrafficPacketDto,
+        CentrifugeTokenDto,
+        TrafficSummaryDto
+    )),
     tags((name = "Traffic", description = "Traffic management endpoints")),
     security(("bearer_auth" = [])),
     modifiers(&TrafficApiDoc)
@@ -37,7 +53,8 @@ impl utoipa::Modify for TrafficApiDoc {
 pub fn traffic_routes() -> Router<AppState> {
     Router::new()
         .route("/add", post(handlers::add_traffic))
+        .route("/subtract", post(handlers::subtract_traffic))
+        .route("/set", post(handlers::set_traffic))
         .route("/ws-tokens", axum::routing::get(handlers::get_ws_tokens))
         .route("/me", axum::routing::get(handlers::get_my_traffic))
 }
-

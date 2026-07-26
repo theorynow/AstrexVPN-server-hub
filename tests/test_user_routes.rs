@@ -137,13 +137,13 @@ async fn test_user_routes_lifecycle() {
         updated_username
     );
 
-    // --- 4. Test POST /traffic/add ---
+    // --- 4. Test POST /traffic/add (in MB) ---
     let add_traffic_resp = client
         .post(format!("{}/traffic/add", base_url))
         .bearer_auth(&access_token1)
         .json(&json!({
             "user_id": user_id1,
-            "gb": 10
+            "mb": 10240
         }))
         .send()
         .await
@@ -158,7 +158,7 @@ async fn test_user_routes_lifecycle() {
         .unwrap()
         .as_i64()
         .unwrap();
-    assert_eq!(traffic_limit_bytes, 10737418240); // 10 GB
+    assert_eq!(traffic_limit_bytes, 10737418240); // 10240 MB = 10 GB
 
     // Check GET /traffic/me to verify traffic total has increased to 35 GB (25 GB initial + 10 GB added)
     let traffic_resp = client
@@ -174,6 +174,52 @@ async fn test_user_routes_lifecycle() {
     let remaining_bytes = traffic_data.get("traffic_remaining_bytes").unwrap().as_i64().unwrap();
     assert_eq!(total_bytes, 37580963840); // 35 GB
     assert_eq!(remaining_bytes, 37580963840); // 35 GB
+
+    // --- 4b. Test POST /traffic/subtract (in MB) ---
+    let sub_traffic_resp = client
+        .post(format!("{}/traffic/subtract", base_url))
+        .bearer_auth(&access_token1)
+        .json(&json!({
+            "user_id": user_id1,
+            "mb": 5120 // Subtract 5 GB
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(sub_traffic_resp.status(), StatusCode::OK);
+    let sub_traffic_body: RestApiResponse<Value> = sub_traffic_resp.json().await.unwrap();
+    let remaining_after_sub = sub_traffic_body
+        .0
+        .data
+        .unwrap()
+        .get("traffic_remaining_bytes")
+        .unwrap()
+        .as_i64()
+        .unwrap();
+    assert_eq!(remaining_after_sub, 37580963840 - 5368709120); // 30 GB remaining
+
+    // --- 4c. Test POST /traffic/set (in MB) ---
+    let set_traffic_resp = client
+        .post(format!("{}/traffic/set", base_url))
+        .bearer_auth(&access_token1)
+        .json(&json!({
+            "user_id": user_id1,
+            "mb": 20480 // Set remaining to 20 GB
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(set_traffic_resp.status(), StatusCode::OK);
+    let set_traffic_body: RestApiResponse<Value> = set_traffic_resp.json().await.unwrap();
+    let remaining_after_set = set_traffic_body
+        .0
+        .data
+        .unwrap()
+        .get("traffic_remaining_bytes")
+        .unwrap()
+        .as_i64()
+        .unwrap();
+    assert_eq!(remaining_after_set, 21474836480); // 20 GB remaining
 
     // --- 5. Test GET /traffic/ws-tokens ---
     let ws_tokens_resp = client
