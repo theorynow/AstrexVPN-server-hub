@@ -231,7 +231,7 @@ async fn test_traffic_repository_and_command_validation() {
     
     // 1. Get summary for non-existent user should be 0 total and 0 remaining
     let publisher = std::sync::Arc::new(hub::common::app::adapters::HttpCentrifugoClient::new(config.clone()));
-    let traffic_repo = hub::common::app::adapters::TrafficRepositoryImpl::new(pool.clone(), publisher);
+    let traffic_repo = hub::features::traffic::PgTrafficRepository::new(pool.clone(), publisher);
     use hub::features::traffic::TrafficRepository;
     let summary = traffic_repo.get_summary(&fake_user_id).await.unwrap();
     assert_eq!(summary.total_bytes, 0);
@@ -290,7 +290,7 @@ async fn test_traffic_centrifuge_publishing() {
     });
 
     // 3. Create repository with mock publisher
-    let traffic_repo = hub::common::app::adapters::TrafficRepositoryImpl::new(pool.clone(), mock_pub.clone());
+    let traffic_repo = hub::features::traffic::PgTrafficRepository::new(pool.clone(), mock_pub.clone());
 
     // 4. Add traffic packet (10 GB = 10737418240 bytes)
     let ten_gb = 10 * 1024 * 1024 * 1024;

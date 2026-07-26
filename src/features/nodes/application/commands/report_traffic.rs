@@ -26,6 +26,10 @@ impl ReportTrafficCommand {
 
     pub async fn execute(&self, node_id: &str, user_bytes: HashMap<String, u64>) {
         for (user_uuid, bytes) in user_bytes {
+            if bytes == 0 {
+                continue;
+            }
+
             tracing::info!(
                 node_id = %node_id,
                 user_uuid = %user_uuid,

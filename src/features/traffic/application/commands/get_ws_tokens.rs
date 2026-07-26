@@ -3,6 +3,7 @@ use crate::common::{
     security::jwt::{make_centrifugo_connect_token, make_centrifugo_subscribe_token},
 };
 
+#[derive(Default)]
 pub struct GetWsTokensCommand;
 
 impl GetWsTokensCommand {

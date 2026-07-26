@@ -2,24 +2,22 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{FromRow, PgPool};
 use std::sync::Arc;
+
 use crate::{
     common::http::error::AppError,
-    features::{
-        nodes::application::ports::UserTrafficService,
-        traffic::{
-            application::ports::{TrafficRepository, RealtimePublisher},
-            domain::model::{TrafficPacket, TrafficSummary},
-        },
+    features::traffic::{
+        application::ports::{RealtimePublisher, TrafficRepository},
+        domain::model::{TrafficPacket, TrafficSummary},
     },
 };
 
 #[derive(Clone)]
-pub struct TrafficRepositoryImpl {
+pub struct PgTrafficRepository {
     pool: PgPool,
     publisher: Arc<dyn RealtimePublisher>,
 }
 
-impl TrafficRepositoryImpl {
+impl PgTrafficRepository {
     pub fn new(pool: PgPool, publisher: Arc<dyn RealtimePublisher>) -> Self {
         Self { pool, publisher }
     }
@@ -71,7 +69,7 @@ impl From<TrafficPacketDb> for TrafficPacket {
 }
 
 #[async_trait]
-impl TrafficRepository for TrafficRepositoryImpl {
+impl TrafficRepository for PgTrafficRepository {
     async fn get_summary(&self, user_id: &str) -> Result<TrafficSummary, AppError> {
         let parsed_uuid = uuid::Uuid::parse_str(user_id)
             .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?;
@@ -134,7 +132,6 @@ impl TrafficRepository for TrafficRepositoryImpl {
 
         let mut tx = self.pool.begin().await?;
 
-        // Select all active traffic packets of the user, ordered by remaining bytes ascending, locked FOR UPDATE
         let mut packets = sqlx::query_as::<_, PacketRow>(
             r#"
             SELECT id, traffic_remaining_bytes
@@ -197,7 +194,7 @@ impl TrafficRepository for TrafficRepositoryImpl {
     async fn get_remaining(&self, user_id: &str) -> Result<u64, AppError> {
         let parsed_uuid = uuid::Uuid::parse_str(user_id)
             .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?;
-        
+
         let sum: Option<i64> = sqlx::query_scalar(
             r#"
             SELECT SUM(traffic_remaining_bytes)::BIGINT
@@ -210,16 +207,5 @@ impl TrafficRepository for TrafficRepositoryImpl {
         .await?;
 
         Ok(sum.unwrap_or(0).max(0) as u64)
-    }
-}
-
-#[async_trait]
-impl UserTrafficService for TrafficRepositoryImpl {
-    async fn get_remaining_traffic(&self, user_uuid: &str) -> Result<u64, AppError> {
-        self.get_remaining(user_uuid).await
-    }
-
-    async fn consume_traffic(&self, user_uuid: &str, bytes: u64) -> Result<u64, AppError> {
-        self.consume(user_uuid, bytes).await
     }
 }

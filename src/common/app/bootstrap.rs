@@ -63,14 +63,24 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
 
     // Traffic
     let realtime_publisher = Arc::new(crate::common::app::adapters::HttpCentrifugoClient::new(config.clone()));
-    let traffic_repository_impl = Arc::new(crate::common::app::adapters::TrafficRepositoryImpl::new(pool.clone(), realtime_publisher));
-    let traffic_repository: Arc<dyn crate::features::traffic::TrafficRepository> = traffic_repository_impl.clone();
-    let user_traffic_service: Arc<dyn UserTrafficService> = traffic_repository_impl;
+    let pg_traffic_repo = Arc::new(crate::features::traffic::PgTrafficRepository::new(pool.clone(), realtime_publisher));
+    let traffic_repository: Arc<dyn crate::features::traffic::TrafficRepository> = pg_traffic_repo.clone();
 
     let add_traffic = Arc::new(crate::features::traffic::AddTrafficCommand::new(traffic_repository.clone()));
+    let consume_traffic = Arc::new(crate::features::traffic::ConsumeTrafficCommand::new(traffic_repository.clone()));
     let get_ws_tokens = Arc::new(crate::features::traffic::GetWsTokensCommand::new());
     let get_summary = Arc::new(crate::features::traffic::GetTrafficSummaryQuery::new(traffic_repository.clone()));
+    let get_remaining_traffic = Arc::new(crate::features::traffic::GetRemainingTrafficQuery::new(traffic_repository.clone()));
+
     let traffic_state = TrafficState::new(add_traffic, get_ws_tokens, get_summary);
+
+    // Cross-feature adapter for Nodes -> Traffic
+    let user_traffic_service: Arc<dyn UserTrafficService> = Arc::new(
+        crate::common::app::adapters::UserTrafficServiceAdapter::new(
+            consume_traffic,
+            get_remaining_traffic,
+        )
+    );
 
     // User
     let user_repository: Arc<dyn UserRepository> = Arc::new(UserRepositoryImpl::new(pool.clone()));

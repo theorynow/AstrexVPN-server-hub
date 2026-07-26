@@ -244,7 +244,10 @@ async fn test_auth_routes_lifecycle() {
     use hub::features::nodes::application::ports::UserTrafficService;
     use std::sync::Arc;
     let publisher = Arc::new(hub::common::app::adapters::HttpCentrifugoClient::new(config.clone()));
-    let user_traffic_service: Arc<dyn UserTrafficService> = Arc::new(hub::common::app::adapters::TrafficRepositoryImpl::new(pool.clone(), publisher));
+    let pg_traffic_repo = Arc::new(hub::features::traffic::PgTrafficRepository::new(pool.clone(), publisher));
+    let consume_cmd = Arc::new(hub::features::traffic::ConsumeTrafficCommand::new(pg_traffic_repo.clone()));
+    let remaining_query = Arc::new(hub::features::traffic::GetRemainingTrafficQuery::new(pg_traffic_repo.clone()));
+    let user_traffic_service: Arc<dyn UserTrafficService> = Arc::new(hub::common::app::adapters::UserTrafficServiceAdapter::new(consume_cmd, remaining_query));
     
     // Get remaining traffic for guest user created earlier (user_id)
     let initial_remaining = user_traffic_service.get_remaining_traffic(&user_id).await.unwrap();
