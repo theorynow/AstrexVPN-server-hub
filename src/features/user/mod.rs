@@ -4,9 +4,11 @@ mod domain;
 mod infra;
 
 // Re-export commonly used items for convenience
+pub use api::dto::request::UpdateMeInput;
 pub use api::routes::{user_routes, UserApiDoc};
 pub use application::commands::update_me::UpdateMeCommand;
 pub use application::models::user_profile::UserProfile;
+pub use application::ports::UserAuthService;
 pub use application::queries::{
     get_me::GetMeQuery, get_user_by_id::GetUserByIdQuery, get_user_list::GetUserListQuery,
     get_users::GetUsersQuery,

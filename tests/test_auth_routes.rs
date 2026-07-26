@@ -203,13 +203,13 @@ async fn test_auth_routes_lifecycle() {
         .to_string();
     assert!(!new_access_token.is_empty());
 
-    // --- 6. Test /auth/change-password ---
+    // --- 6. Test password change via PATCH /user/me ---
     let new_password = "newsecretpassword";
     let change_pwd_resp = client
-        .post(format!("{}/auth/change-password", base_url))
+        .patch(format!("{}/user/me", base_url))
         .bearer_auth(&reg_access_token)
         .json(&json!({
-            "new_password": new_password
+            "password": new_password
         }))
         .send()
         .await

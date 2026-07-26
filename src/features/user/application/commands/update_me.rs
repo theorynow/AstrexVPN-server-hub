@@ -2,44 +2,66 @@ use std::sync::Arc;
 
 use crate::{
     common::http::error::AppError,
-    features::user::{UpdateUserProfile, UserProfile, UserRepository},
+    features::user::{
+        application::ports::UserAuthService, UpdateMeInput, UpdateUserProfile, UserProfile,
+        UserRepository,
+    },
 };
 
 pub struct UpdateMeCommand {
     repo: Arc<dyn UserRepository>,
+    user_auth_service: Arc<dyn UserAuthService>,
 }
 
 impl UpdateMeCommand {
-    pub fn new(repo: Arc<dyn UserRepository>) -> Self {
-        Self { repo }
+    pub fn new(
+        repo: Arc<dyn UserRepository>,
+        user_auth_service: Arc<dyn UserAuthService>,
+    ) -> Self {
+        Self {
+            repo,
+            user_auth_service,
+        }
     }
 
     pub async fn execute(
         &self,
         user_id: String,
-        update: UpdateUserProfile,
+        input: UpdateMeInput,
     ) -> Result<UserProfile, AppError> {
-        let update = normalize_update(update)?;
-        let user = self
-            .repo
-            .update_profile(&user_id, update)
-            .await?
-            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        let username = normalize_optional_field(input.username);
+        let password = normalize_optional_field(input.password);
 
-        Ok(UserProfile::new(user))
+        if username.is_none() && password.is_none() {
+            return Err(AppError::ValidationError(
+                "At least one field (username or password) must be provided".into(),
+            ));
+        }
+
+        if let Some(ref new_password) = password {
+            self.user_auth_service
+                .change_password(&user_id, new_password)
+                .await?;
+        }
+
+        if let Some(username) = username {
+            let user = self
+                .repo
+                .update_profile(&user_id, UpdateUserProfile { username: Some(username) })
+                .await?
+                .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+            Ok(UserProfile::new(user))
+        } else {
+            let user = self
+                .repo
+                .find_by_id(&user_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+            Ok(UserProfile::new(user))
+        }
     }
-}
-
-fn normalize_update(update: UpdateUserProfile) -> Result<UpdateUserProfile, AppError> {
-    let username = normalize_optional_field(update.username);
-
-    if username.is_none() {
-        return Err(AppError::ValidationError(
-            "Username must be provided".into(),
-        ));
-    }
-
-    Ok(UpdateUserProfile { username })
 }
 
 fn normalize_optional_field(field: Option<String>) -> Option<String> {

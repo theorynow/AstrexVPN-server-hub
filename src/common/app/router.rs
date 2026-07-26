@@ -42,6 +42,14 @@ use regex::Regex;
 pub static FORBIDDEN_PATTERNS: Lazy<Vec<Regex>> =
     Lazy::new(|| vec![Regex::new(r"(?i)<\s*script\b[^>]*>").unwrap()]);
 
+pub static SENSITIVE_FIELD_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)("(?:password|new_password|old_password|token|refresh_token)"\s*:\s*)"[^"]*""#).unwrap()
+});
+
+fn sanitize_log_body(body_str: &str) -> String {
+    SENSITIVE_FIELD_REGEX.replace_all(body_str, r#"${1}"***""#).to_string()
+}
+
 pub fn create_router(state: AppState) -> Router {
     // Build a CORS layer that applies to everyone
     let cors = CorsLayer::new()
@@ -197,7 +205,8 @@ where
 
     if let Ok(body_str) = std::str::from_utf8(&bytes) {
         if log_enabled {
-            tracing::info!("{} body = {:?}", direction, body_str);
+            let sanitized = sanitize_log_body(body_str);
+            tracing::info!("{} body = {:?}", direction, sanitized);
         }
 
         if FORBIDDEN_PATTERNS.iter().any(|re| re.is_match(body_str)) {

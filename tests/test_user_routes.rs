@@ -116,6 +116,33 @@ async fn test_user_routes_lifecycle() {
         updated_username
     );
 
+    // --- 2b. Test PATCH /user/me updating both username and password ---
+    let updated_username2 = format!("u1-new2-{}", Uuid::new_v4());
+    let new_password = "new_password_456";
+    let patch_resp2 = client
+        .patch(format!("{}/user/me", base_url))
+        .bearer_auth(&access_token1)
+        .json(&json!({
+            "username": updated_username2,
+            "password": new_password
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(patch_resp2.status(), StatusCode::OK);
+
+    // Verify login with updated username and new password
+    let login_new_resp = client
+        .post(format!("{}/auth/login", base_url))
+        .json(&json!({
+            "username": updated_username2,
+            "password": new_password
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(login_new_resp.status(), StatusCode::OK);
+
     // --- 3. Test GET /user/{id} ---
     let get_by_id_resp = client
         .get(format!("{}/user/{}", base_url, user_id1))
@@ -134,7 +161,7 @@ async fn test_user_routes_lifecycle() {
             .unwrap()
             .as_str()
             .unwrap(),
-        updated_username
+        updated_username2
     );
 
     // --- 4. Test POST /traffic/add (in MB) ---

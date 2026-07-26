@@ -17,8 +17,8 @@ use crate::features::nodes::{
     infra::adapters::{pg_node_repository::PgNodeRepository, ws_commander_impl::WsCommanderImpl},
 };
 use crate::features::user::{
-    GetMeQuery, GetUserByIdQuery, GetUserListQuery, GetUsersQuery, UpdateMeCommand, UserRepository,
-    UserRepositoryImpl,
+    GetMeQuery, GetUserByIdQuery, GetUserListQuery, GetUsersQuery, UpdateMeCommand,
+    UserAuthService, UserRepository, UserRepositoryImpl,
 };
 
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -90,9 +90,14 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
         )
     );
 
+    // Cross-feature adapter for User -> Auth
+    let user_auth_service: Arc<dyn UserAuthService> = Arc::new(
+        crate::common::app::adapters::UserAuthServiceAdapter::new(change_password.clone())
+    );
+
     // User
     let user_repository: Arc<dyn UserRepository> = Arc::new(UserRepositoryImpl::new(pool.clone()));
-    let update_me = Arc::new(UpdateMeCommand::new(user_repository.clone()));
+    let update_me = Arc::new(UpdateMeCommand::new(user_repository.clone(), user_auth_service));
     let get_me = Arc::new(GetMeQuery::new(user_repository.clone()));
     let get_user_by_id = Arc::new(GetUserByIdQuery::new(user_repository.clone()));
     let get_user_list = Arc::new(GetUserListQuery::new(user_repository.clone()));
