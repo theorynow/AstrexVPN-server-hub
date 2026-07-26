@@ -60,7 +60,7 @@ impl From<UserRow> for User {
 fn map_user_write_error(err: sqlx::Error) -> AppError {
     match &err {
         sqlx::Error::Database(db_err) if db_err.constraint() == Some("users_username_key") => {
-            AppError::ValidationError("Username already exists".into())
+            AppError::UserAlreadyExists
         }
         _ => AppError::DatabaseError(err),
     }

@@ -143,6 +143,30 @@ async fn test_user_routes_lifecycle() {
         .unwrap();
     assert_eq!(login_new_resp.status(), StatusCode::OK);
 
+    // --- 2c. Test PATCH /user/me with duplicate username (should return CONFLICT 409) ---
+    let username2 = format!("u2-{}", Uuid::new_v4());
+    let reg2_resp = client
+        .post(format!("{}/auth/register", base_url))
+        .json(&json!({
+            "username": username2,
+            "password": "password123"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(reg2_resp.status(), StatusCode::OK);
+
+    let dup_patch_resp = client
+        .patch(format!("{}/user/me", base_url))
+        .bearer_auth(&access_token1)
+        .json(&json!({
+            "username": username2
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(dup_patch_resp.status(), StatusCode::CONFLICT);
+
     // --- 3. Test GET /user/{id} ---
     let get_by_id_resp = client
         .get(format!("{}/user/{}", base_url, user_id1))
