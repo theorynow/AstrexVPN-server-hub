@@ -44,23 +44,21 @@ impl UpdateMeCommand {
                 .await?;
         }
 
-        if let Some(username) = username {
-            let user = self
-                .repo
+        let user = if let Some(username) = username {
+            self.repo
                 .update_profile(&user_id, UpdateUserProfile { username: Some(username) })
                 .await?
-                .ok_or_else(|| AppError::NotFound("User not found".into()))?;
-
-            Ok(UserProfile::new(user))
+                .ok_or_else(|| AppError::NotFound("User not found".into()))?
         } else {
-            let user = self
-                .repo
+            self.repo
                 .find_by_id(&user_id)
                 .await?
-                .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+                .ok_or_else(|| AppError::NotFound("User not found".into()))?
+        };
 
-            Ok(UserProfile::new(user))
-        }
+        let is_guest = self.user_auth_service.is_guest(&user_id).await?;
+
+        Ok(UserProfile::new(user, is_guest))
     }
 }
 

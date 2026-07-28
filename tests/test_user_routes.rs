@@ -90,6 +90,7 @@ async fn test_user_routes_lifecycle() {
         me_data.get("username").unwrap().as_str().unwrap(),
         username1
     );
+    assert_eq!(me_data.get("is_guest").unwrap().as_bool().unwrap(), false);
 
     // --- 2. Test PATCH /user/me ---
     let updated_username = format!("u1-new-{}", Uuid::new_v4());

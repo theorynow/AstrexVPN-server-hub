@@ -59,7 +59,7 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
     let auth_as_guest = Arc::new(AuthAsGuestCommand::new(auth_repository.clone()));
     let user_exists = Arc::new(UserExistsQuery::new(auth_repository.clone()));
     let change_password = Arc::new(ChangePasswordCommand::new(auth_repository.clone()));
-    let refresh_session = Arc::new(RefreshSessionCommand::new(auth_repository));
+    let refresh_session = Arc::new(RefreshSessionCommand::new(auth_repository.clone()));
 
     // Traffic
     let realtime_publisher = Arc::new(crate::common::app::adapters::HttpCentrifugoClient::new(config.clone()));
@@ -92,16 +92,19 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
 
     // Cross-feature adapter for User -> Auth
     let user_auth_service: Arc<dyn UserAuthService> = Arc::new(
-        crate::common::app::adapters::UserAuthServiceAdapter::new(change_password.clone())
+        crate::common::app::adapters::UserAuthServiceAdapter::new(
+            change_password.clone(),
+            auth_repository.clone(),
+        )
     );
 
     // User
     let user_repository: Arc<dyn UserRepository> = Arc::new(UserRepositoryImpl::new(pool.clone()));
-    let update_me = Arc::new(UpdateMeCommand::new(user_repository.clone(), user_auth_service));
-    let get_me = Arc::new(GetMeQuery::new(user_repository.clone()));
-    let get_user_by_id = Arc::new(GetUserByIdQuery::new(user_repository.clone()));
-    let get_user_list = Arc::new(GetUserListQuery::new(user_repository.clone()));
-    let get_users = Arc::new(GetUsersQuery::new(user_repository.clone()));
+    let update_me = Arc::new(UpdateMeCommand::new(user_repository.clone(), user_auth_service.clone()));
+    let get_me = Arc::new(GetMeQuery::new(user_repository.clone(), user_auth_service.clone()));
+    let get_user_by_id = Arc::new(GetUserByIdQuery::new(user_repository.clone(), user_auth_service.clone()));
+    let get_user_list = Arc::new(GetUserListQuery::new(user_repository.clone(), user_auth_service.clone()));
+    let get_users = Arc::new(GetUsersQuery::new(user_repository.clone(), user_auth_service));
 
     let max_file_size_bytes = config.max_file_size_mb as usize * 1024 * 1024;
 

@@ -87,6 +87,7 @@ async fn test_auth_routes_lifecycle() {
         .unwrap()
         .to_string();
     assert!(username.starts_with("guest-"));
+    assert_eq!(me_data.get("is_guest").unwrap().as_bool().unwrap(), true);
 
     // Check DB directly — guest users now always have username = "guest-{uuid}"
     let db_username: Option<String> =
