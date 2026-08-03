@@ -1,5 +1,6 @@
 CREATE TABLE nodes (
     id            VARCHAR(64) PRIMARY KEY,
+    public_ip     VARCHAR(255) NOT NULL,
     name_en       VARCHAR(255) NOT NULL,
     name_ru       VARCHAR(255) NOT NULL,
     country_flag  VARCHAR(32) NOT NULL,

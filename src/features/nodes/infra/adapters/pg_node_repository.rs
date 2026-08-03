@@ -24,6 +24,7 @@ impl PgNodeRepository {
 #[derive(Debug, FromRow)]
 struct NodeRow {
     id: String,
+    public_ip: String,
     name_en: String,
     name_ru: String,
     country_flag: String,
@@ -39,6 +40,7 @@ impl From<NodeRow> for Node {
     fn from(row: NodeRow) -> Self {
         Self {
             id: row.id,
+            public_ip: row.public_ip,
             name_en: row.name_en,
             name_ru: row.name_ru,
             country_flag: row.country_flag,
@@ -57,9 +59,10 @@ impl NodeRepository for PgNodeRepository {
     async fn save(&self, node: &Node) -> Result<(), AppError> {
         sqlx::query(
             r#"
-            INSERT INTO nodes (id, name_en, name_ru, country_flag, xray, hysteria, status, last_seen_at, created_at, modified_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            INSERT INTO nodes (id, public_ip, name_en, name_ru, country_flag, xray, hysteria, status, last_seen_at, created_at, modified_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ON CONFLICT (id) DO UPDATE SET
+                public_ip = EXCLUDED.public_ip,
                 name_en = EXCLUDED.name_en,
                 name_ru = EXCLUDED.name_ru,
                 country_flag = EXCLUDED.country_flag,
@@ -71,6 +74,7 @@ impl NodeRepository for PgNodeRepository {
             "#,
         )
         .bind(&node.id)
+        .bind(&node.public_ip)
         .bind(&node.name_en)
         .bind(&node.name_ru)
         .bind(&node.country_flag)
@@ -89,7 +93,7 @@ impl NodeRepository for PgNodeRepository {
     async fn find_by_id(&self, id: &str) -> Result<Option<Node>, AppError> {
         let row = sqlx::query_as::<_, NodeRow>(
             r#"
-            SELECT id, name_en, name_ru, country_flag, xray, hysteria, status, last_seen_at, created_at, modified_at
+            SELECT id, public_ip, name_en, name_ru, country_flag, xray, hysteria, status, last_seen_at, created_at, modified_at
             FROM nodes
             WHERE id = $1
             "#,
@@ -141,7 +145,7 @@ impl NodeRepository for PgNodeRepository {
     async fn get_active_nodes(&self) -> Result<Vec<Node>, AppError> {
         let rows = sqlx::query_as::<_, NodeRow>(
             r#"
-            SELECT id, name_en, name_ru, country_flag, xray, hysteria, status, last_seen_at, created_at, modified_at
+            SELECT id, public_ip, name_en, name_ru, country_flag, xray, hysteria, status, last_seen_at, created_at, modified_at
             FROM nodes
             WHERE status = 'online'
             "#,

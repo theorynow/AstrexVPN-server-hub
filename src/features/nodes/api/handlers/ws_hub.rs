@@ -97,7 +97,7 @@ async fn handle_socket(socket: WebSocket, state: crate::common::app::state::AppS
     );
 
     if let Err(e) = connect_node_cmd
-        .execute(&node_id, &auth_secret, &name_en, &name_ru, &country_flag, xray, hysteria)
+        .execute(&node_id, &auth_secret, &public_ip, &name_en, &name_ru, &country_flag, xray, hysteria)
         .await
     {
         tracing::warn!(node_id = %node_id, error = %e, "Node authentication failed");

@@ -25,6 +25,7 @@ impl ConnectNodeCommand {
         &self,
         node_id: &str,
         auth_secret: &str,
+        public_ip: &str,
         name_en: &str,
         name_ru: &str,
         country_flag: &str,
@@ -38,6 +39,7 @@ impl ConnectNodeCommand {
         let existing = self.repo.find_by_id(node_id).await?;
         let new_node = Node {
             id: node_id.to_string(),
+            public_ip: public_ip.to_string(),
             name_en: name_en.to_string(),
             name_ru: name_ru.to_string(),
             country_flag: country_flag.to_string(),

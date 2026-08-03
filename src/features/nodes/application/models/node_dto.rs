@@ -40,6 +40,7 @@ impl From<HysteriaConfig> for HysteriaConfigDto {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct NodeDto {
     pub id: String,
+    pub public_ip: String,
     pub name_en: String,
     pub name_ru: String,
     pub country_flag: String,
@@ -53,6 +54,7 @@ impl From<Node> for NodeDto {
     fn from(n: Node) -> Self {
         Self {
             id: n.id,
+            public_ip: n.public_ip,
             name_en: n.name_en,
             name_ru: n.name_ru,
             country_flag: n.country_flag,

@@ -150,6 +150,7 @@ async fn test_nodes_websocket_lifecycle() {
     let data = body.get("data").unwrap().as_array().unwrap();
     let active_node_json = data.iter().find(|n| n.get("id").unwrap().as_str() == Some(&node_id)).unwrap();
 
+    assert_eq!(active_node_json.get("public_ip").unwrap().as_str().unwrap(), "127.0.0.1");
     assert_eq!(active_node_json.get("name_en").unwrap().as_str().unwrap(), "Germany");
     assert_eq!(active_node_json.get("name_ru").unwrap().as_str().unwrap(), "Германия");
     assert_eq!(active_node_json.get("country_flag").unwrap().as_str().unwrap(), "🇩🇪");

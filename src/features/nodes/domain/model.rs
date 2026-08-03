@@ -48,6 +48,7 @@ pub struct HysteriaConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
     pub id: NodeId,
+    pub public_ip: String,
     pub name_en: String,
     pub name_ru: String,
     pub country_flag: String,
