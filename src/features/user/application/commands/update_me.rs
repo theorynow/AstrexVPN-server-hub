@@ -29,8 +29,8 @@ impl UpdateMeCommand {
         user_id: String,
         input: UpdateMeInput,
     ) -> Result<UserProfile, AppError> {
-        let username = normalize_optional_field(input.username);
-        let password = normalize_optional_field(input.password);
+        let username = normalize_optional_field(input.username)?;
+        let password = normalize_optional_field(input.password)?;
 
         if username.is_none() && password.is_none() {
             return Err(AppError::ValidationError(
@@ -62,8 +62,16 @@ impl UpdateMeCommand {
     }
 }
 
-fn normalize_optional_field(field: Option<String>) -> Option<String> {
-    field
-        .map(|f| f.trim().to_string())
-        .filter(|f| !f.is_empty())
+fn normalize_optional_field(field: Option<String>) -> Result<Option<String>, AppError> {
+    match field {
+        Some(f) => {
+            let trimmed = f.trim().to_string();
+            if trimmed.is_empty() {
+                Err(AppError::ValidationError("Field cannot be empty".into()))
+            } else {
+                Ok(Some(trimmed))
+            }
+        }
+        None => Ok(None),
+    }
 }

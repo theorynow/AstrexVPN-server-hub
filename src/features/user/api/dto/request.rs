@@ -23,7 +23,7 @@ impl From<SearchUserDto> for SearchUser {
 pub struct UpdateMeDto {
     #[validate(length(min = 1, max = 64, message = "Username must be between 1 and 64 characters"))]
     pub username: Option<String>,
-    #[validate(length(min = 6, max = 128, message = "Password must be between 6 and 128 characters"))]
+    #[validate(length(min = 1, max = 128, message = "Password cannot be empty"))]
     pub password: Option<String>,
 }
 

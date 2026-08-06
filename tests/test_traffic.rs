@@ -86,7 +86,7 @@ async fn test_traffic_packets_lifecycle() {
         public_ip: "127.0.0.1".to_string(),
         inbound_tags: vec!["vless-in".to_string()],
         name_en: None,
-        name_ru: None,
+        country_code: None,
         country_flag: None,
         xray: None,
         hysteria: None,

@@ -13,7 +13,6 @@ use crate::common::http::dto::RestApiResponse;
 use super::dto::ApiResponse;
 
 /// AppError is an enum that represents various types of errors that can occur in the application.
-/// AppError is an enum that represents various types of errors that can occur in the application.
 /// It implements the `std::error::Error` trait and the `axum::response::IntoResponse` trait.
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -53,6 +52,31 @@ pub enum AppError {
     UserAlreadyExists,
     #[error("Node rejected action")]
     NodeRejectedAction,
+
+    #[error("User has no remaining traffic")]
+    TrafficExhausted,
+}
+
+impl AppError {
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            AppError::DatabaseError(_) => "DATABASE_ERROR",
+            AppError::NotFound(_) => "NOT_FOUND",
+            AppError::Conflict(_) => "CONFLICT",
+            AppError::InternalError => "INTERNAL_SERVER_ERROR",
+            AppError::ValidationError(_) => "VALIDATION_ERROR",
+            AppError::Forbidden(_) => "FORBIDDEN",
+            AppError::ProviderError(_) => "PROVIDER_ERROR",
+            AppError::WrongCredentials => "WRONG_CREDENTIALS",
+            AppError::MissingCredentials => "MISSING_CREDENTIALS",
+            AppError::InvalidToken => "INVALID_TOKEN",
+            AppError::TokenCreation => "TOKEN_CREATION_ERROR",
+            AppError::UserNotFound => "USER_NOT_FOUND",
+            AppError::UserAlreadyExists => "USER_ALREADY_EXISTS",
+            AppError::NodeRejectedAction => "NODE_REJECTED_ACTION",
+            AppError::TrafficExhausted => "TRAFFIC_EXHAUSTED",
+        }
+    }
 }
 
 /// Converts the AppError enum into an HTTP response.
@@ -74,14 +98,15 @@ impl IntoResponse for AppError {
             AppError::UserNotFound => StatusCode::NOT_FOUND,
             AppError::UserAlreadyExists => StatusCode::CONFLICT,
             AppError::NodeRejectedAction => StatusCode::BAD_REQUEST,
+            AppError::TrafficExhausted => StatusCode::FORBIDDEN,
         };
 
-        let message = self.to_string();
+        let message = self.error_code().to_string();
 
         if status.is_server_error() {
-            error!(error = %message, status = status.as_u16(), "Application error");
+            error!(error = %self, status = status.as_u16(), "Application error");
         } else {
-            tracing::warn!(error = %message, status = status.as_u16(), "Client error");
+            tracing::warn!(error = %self, status = status.as_u16(), "Client error");
         }
 
         let body = axum::Json(ApiResponse::<()> {
@@ -107,10 +132,37 @@ pub async fn handle_error(error: BoxError) -> impl IntoResponse {
         StatusCode::INTERNAL_SERVER_ERROR
     };
 
-    let message = error.to_string();
-    error!(?status, %message, "Request failed");
+    let message = if status == StatusCode::REQUEST_TIMEOUT {
+        "REQUEST_TIMEOUT".to_string()
+    } else {
+        "INTERNAL_SERVER_ERROR".to_string()
+    };
+    error!(?status, %error, "Request failed");
 
     let body = RestApiResponse::<()>::failure(status.as_u16(), message);
 
     (status, body)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_error_codes() {
+        assert_eq!(AppError::NotFound("test".to_string()).error_code(), "NOT_FOUND");
+        assert_eq!(AppError::Conflict("test".to_string()).error_code(), "CONFLICT");
+        assert_eq!(AppError::InternalError.error_code(), "INTERNAL_SERVER_ERROR");
+        assert_eq!(AppError::ValidationError("test".to_string()).error_code(), "VALIDATION_ERROR");
+        assert_eq!(AppError::Forbidden("test".to_string()).error_code(), "FORBIDDEN");
+        assert_eq!(AppError::ProviderError("test".to_string()).error_code(), "PROVIDER_ERROR");
+        assert_eq!(AppError::WrongCredentials.error_code(), "WRONG_CREDENTIALS");
+        assert_eq!(AppError::MissingCredentials.error_code(), "MISSING_CREDENTIALS");
+        assert_eq!(AppError::InvalidToken.error_code(), "INVALID_TOKEN");
+        assert_eq!(AppError::TokenCreation.error_code(), "TOKEN_CREATION_ERROR");
+        assert_eq!(AppError::UserNotFound.error_code(), "USER_NOT_FOUND");
+        assert_eq!(AppError::UserAlreadyExists.error_code(), "USER_ALREADY_EXISTS");
+        assert_eq!(AppError::NodeRejectedAction.error_code(), "NODE_REJECTED_ACTION");
+        assert_eq!(AppError::TrafficExhausted.error_code(), "TRAFFIC_EXHAUSTED");
+    }
 }

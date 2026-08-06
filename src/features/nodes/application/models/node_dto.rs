@@ -42,7 +42,7 @@ pub struct NodeDto {
     pub id: String,
     pub public_ip: String,
     pub name_en: String,
-    pub name_ru: String,
+    pub country_code: String,
     pub country_flag: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub xray: Option<XrayConfigDto>,
@@ -56,7 +56,7 @@ impl From<Node> for NodeDto {
             id: n.id,
             public_ip: n.public_ip,
             name_en: n.name_en,
-            name_ru: n.name_ru,
+            country_code: n.country_code,
             country_flag: n.country_flag,
             xray: n.xray.map(Into::into),
             hysteria: n.hysteria.map(Into::into),

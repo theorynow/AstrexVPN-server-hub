@@ -50,7 +50,7 @@ pub struct Node {
     pub id: NodeId,
     pub public_ip: String,
     pub name_en: String,
-    pub name_ru: String,
+    pub country_code: String,
     pub country_flag: String,
     pub xray: Option<XrayConfig>,
     pub hysteria: Option<HysteriaConfig>,

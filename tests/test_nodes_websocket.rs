@@ -57,7 +57,7 @@ async fn test_nodes_websocket_lifecycle() {
         public_ip: "127.0.0.1".to_string(),
         inbound_tags: vec!["vless-in".to_string()],
         name_en: Some("Germany".to_string()),
-        name_ru: Some("Германия".to_string()),
+        country_code: Some("DE".to_string()),
         country_flag: Some("🇩🇪".to_string()),
         xray: Some(XrayConfig {
             port: 443,
@@ -94,7 +94,7 @@ async fn test_nodes_websocket_lifecycle() {
     let node = node_repo.find_by_id(&node_id).await.unwrap().unwrap();
     assert_eq!(node.status, NodeStatus::Online);
     assert_eq!(node.name_en, "Germany");
-    assert_eq!(node.name_ru, "Германия");
+    assert_eq!(node.country_code, "DE");
     assert_eq!(node.country_flag, "🇩🇪");
     assert_eq!(
         node.xray,

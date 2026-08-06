@@ -23,7 +23,7 @@ impl<C: NodeCommander + ?Sized> AddUserToNodeCommand<C> {
         // Check user remaining traffic. Reject if it is 0.
         let remaining = self.user_traffic_service.get_remaining_traffic(user_uuid).await?;
         if remaining == 0 {
-            return Err(AppError::ValidationError("User has no remaining traffic".to_string()));
+            return Err(AppError::TrafficExhausted);
         }
 
         let success = self

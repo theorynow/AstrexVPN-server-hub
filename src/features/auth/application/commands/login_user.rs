@@ -20,16 +20,16 @@ impl LoginUserCommand {
     }
 
     pub async fn execute(&self, input: LoginUser) -> Result<AuthBody, AppError> {
-        let password = input.password.as_deref();
-        let has_valid_password = password.is_some_and(|value| !value.is_empty());
+        let username = input.username.trim();
+        let password = input.password.as_deref().map(|p| p.trim()).unwrap_or("");
 
-        if input.username.is_empty() || !has_valid_password {
+        if username.is_empty() || password.is_empty() {
             return Err(AppError::MissingCredentials);
         }
 
         let user_auth = self
             .repo
-            .find_by_username(&input.username)
+            .find_by_username(username)
             .await?
             .ok_or(AppError::UserNotFound)?;
 
@@ -38,7 +38,7 @@ impl LoginUserCommand {
             .as_deref()
             .ok_or(AppError::WrongCredentials)?;
 
-        if !hash_util::verify_password(stored_hash, password.unwrap()) {
+        if !hash_util::verify_password(stored_hash, password) {
             return Err(AppError::WrongCredentials);
         }
 
