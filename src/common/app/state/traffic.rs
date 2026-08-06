@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::features::traffic::{
-    AddTrafficCommand, GetTrafficSummaryQuery, GetWsTokensCommand, SetTrafficCommand,
-    SubtractTrafficCommand,
+    AddTrafficCommand, GetTrafficHistoryQuery, GetTrafficSummaryQuery, GetWsTokensCommand,
+    SetTrafficCommand, SubtractTrafficCommand,
 };
 
 #[derive(Clone)]
@@ -12,6 +12,7 @@ pub struct TrafficState {
     pub set_traffic: Arc<SetTrafficCommand>,
     pub get_ws_tokens: Arc<GetWsTokensCommand>,
     pub get_summary: Arc<GetTrafficSummaryQuery>,
+    pub get_history: Arc<GetTrafficHistoryQuery>,
 }
 
 impl TrafficState {
@@ -21,6 +22,7 @@ impl TrafficState {
         set_traffic: Arc<SetTrafficCommand>,
         get_ws_tokens: Arc<GetWsTokensCommand>,
         get_summary: Arc<GetTrafficSummaryQuery>,
+        get_history: Arc<GetTrafficHistoryQuery>,
     ) -> Self {
         Self {
             add_traffic,
@@ -28,6 +30,7 @@ impl TrafficState {
             set_traffic,
             get_ws_tokens,
             get_summary,
+            get_history,
         }
     }
 }

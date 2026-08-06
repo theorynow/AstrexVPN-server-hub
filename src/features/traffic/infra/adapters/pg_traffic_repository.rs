@@ -208,4 +208,23 @@ impl TrafficRepository for PgTrafficRepository {
 
         Ok(sum.unwrap_or(0).max(0) as u64)
     }
+
+    async fn get_history(&self, user_id: &str) -> Result<Vec<TrafficPacket>, AppError> {
+        let parsed_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?;
+
+        let db_packets = sqlx::query_as::<_, TrafficPacketDb>(
+            r#"
+            SELECT id, user_id, traffic_limit_bytes, traffic_remaining_bytes, expires_at, created_at, modified_at
+            FROM user_traffic_packets
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            "#
+        )
+        .bind(parsed_uuid)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(db_packets.into_iter().map(Into::into).collect())
+    }
 }

@@ -12,6 +12,7 @@ pub use application::commands::{
 };
 pub use application::queries::{
     get_remaining_traffic::GetRemainingTrafficQuery,
+    get_traffic_history::GetTrafficHistoryQuery,
     get_traffic_summary::GetTrafficSummaryQuery,
 };
 pub use application::ports::traffic_repository::TrafficRepository;

@@ -72,6 +72,7 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
     let consume_traffic = Arc::new(crate::features::traffic::ConsumeTrafficCommand::new(traffic_repository.clone()));
     let get_ws_tokens = Arc::new(crate::features::traffic::GetWsTokensCommand::new());
     let get_summary = Arc::new(crate::features::traffic::GetTrafficSummaryQuery::new(traffic_repository.clone()));
+    let get_history = Arc::new(crate::features::traffic::GetTrafficHistoryQuery::new(traffic_repository.clone()));
     let get_remaining_traffic = Arc::new(crate::features::traffic::GetRemainingTrafficQuery::new(traffic_repository.clone()));
 
     let traffic_state = TrafficState::new(
@@ -80,6 +81,7 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
         set_traffic,
         get_ws_tokens,
         get_summary,
+        get_history,
     );
 
     // Cross-feature adapter for Nodes -> Traffic

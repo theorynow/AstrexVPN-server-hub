@@ -5,8 +5,8 @@ use utoipa::{
 };
 
 use super::dto::{
-    AddTrafficDto, CentrifugeTokenDto, SetTrafficDto, SubtractTrafficDto, TrafficPacketDto,
-    TrafficSummaryDto,
+    AddTrafficDto, CentrifugeTokenDto, SetTrafficDto, SubtractTrafficDto, TrafficHistoryItemDto,
+    TrafficHistoryResponseDto, TrafficPacketDto, TrafficSummaryDto,
 };
 use super::handlers;
 use crate::common::app::state::AppState;
@@ -18,7 +18,8 @@ use crate::common::app::state::AppState;
         handlers::subtract_traffic,
         handlers::set_traffic,
         handlers::get_ws_tokens,
-        handlers::get_my_traffic
+        handlers::get_my_traffic,
+        handlers::get_traffic_history
     ),
     components(schemas(
         AddTrafficDto,
@@ -26,7 +27,9 @@ use crate::common::app::state::AppState;
         SetTrafficDto,
         TrafficPacketDto,
         CentrifugeTokenDto,
-        TrafficSummaryDto
+        TrafficSummaryDto,
+        TrafficHistoryItemDto,
+        TrafficHistoryResponseDto
     )),
     tags((name = "Traffic", description = "Traffic management endpoints")),
     security(("bearer_auth" = [])),
@@ -57,4 +60,5 @@ pub fn traffic_routes() -> Router<AppState> {
         .route("/set", post(handlers::set_traffic))
         .route("/ws-tokens", axum::routing::get(handlers::get_ws_tokens))
         .route("/me", axum::routing::get(handlers::get_my_traffic))
+        .route("/history", axum::routing::get(handlers::get_traffic_history))
 }

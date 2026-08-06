@@ -4,8 +4,8 @@ use crate::{
     common::app::state::AppState,
     common::http::{current_user::CurrentUser, dto::RestApiResponse, error::AppError},
     features::traffic::api::dto::{
-        AddTrafficDto, CentrifugeTokenDto, SetTrafficDto, SubtractTrafficDto, TrafficPacketDto,
-        TrafficSummaryDto,
+        AddTrafficDto, CentrifugeTokenDto, SetTrafficDto, SubtractTrafficDto, TrafficHistoryItemDto,
+        TrafficHistoryResponseDto, TrafficPacketDto, TrafficSummaryDto,
     },
 };
 
@@ -120,6 +120,26 @@ pub async fn get_ws_tokens(
         connection_token,
         subscription_token,
         channel,
+    };
+    Ok(RestApiResponse::success(dto))
+}
+
+#[utoipa::path(
+    get,
+    path = "/traffic/history",
+    responses((status = 200, description = "Get traffic allocation history for current user", body = TrafficHistoryResponseDto)),
+    tag = "Traffic",
+    security(("bearer_auth" = []))
+)]
+pub async fn get_traffic_history(
+    State(state): State<AppState>,
+    current_user: CurrentUser,
+) -> Result<impl IntoResponse, AppError> {
+    let packets = state.traffic.get_history.execute(&current_user.user_id).await?;
+    let items: Vec<TrafficHistoryItemDto> = packets.into_iter().map(Into::into).collect();
+    let dto = TrafficHistoryResponseDto {
+        server_time: chrono::Utc::now().to_rfc3339(),
+        items,
     };
     Ok(RestApiResponse::success(dto))
 }

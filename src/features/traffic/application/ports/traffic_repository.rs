@@ -19,4 +19,7 @@ pub trait TrafficRepository: Send + Sync {
 
     /// Returns the total remaining bytes across all active (non-expired) packets.
     async fn get_remaining(&self, user_id: &str) -> Result<u64, AppError>;
+
+    /// Returns the history of all traffic packets for a user ordered by creation date (newest first).
+    async fn get_history(&self, user_id: &str) -> Result<Vec<TrafficPacket>, AppError>;
 }
