@@ -260,14 +260,6 @@ async fn request_id_middleware(req: Request<Body>, next: Next) -> Response {
         .and_then(|h| h.to_str().ok())
         .unwrap_or("")
         .to_string();
-    let client_ip = req
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim())
-        .unwrap_or("")
-        .to_string();
 
     // Bind the generated UUID to the task-local variable
     let (mut res, final_request_id) = crate::common::http::dto::REQUEST_ID
@@ -297,7 +289,6 @@ async fn request_id_middleware(req: Request<Body>, next: Next) -> Response {
         method = %method,
         uri = %uri,
         user_agent = %user_agent,
-        client_ip = %client_ip,
         request_id = %final_request_id,
         "request completed: status = {status}, latency = {latency:?}, user_agent = \"{user_agent}\"",
         status = status_code,

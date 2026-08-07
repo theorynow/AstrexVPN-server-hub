@@ -14,6 +14,13 @@ pub trait AuthRepository: Send + Sync {
         password_hash: Option<String>,
     ) -> Result<String, AppError>;
 
+    async fn create_user_with_auth_and_device(
+        &self,
+        username: Option<String>,
+        password_hash: Option<String>,
+        device_identity_id: Option<uuid::Uuid>,
+    ) -> Result<String, AppError>;
+
     async fn find_by_username(&self, username: &str) -> Result<Option<UserAuth>, AppError>;
 
     async fn find_by_id(&self, user_id: &str) -> Result<Option<UserAuth>, AppError>;

@@ -3,3 +3,4 @@ pub mod nodes;
 pub mod user;
 pub mod traffic;
 pub mod promocode;
+pub mod abuse_shield;

@@ -52,11 +52,24 @@ pub async fn run_database_migrations(pool: &PgPool) -> Result<(), MigrateError> 
 pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
     tracing::info!("Building application state");
 
+    // Abuse Shield
+    let device_identity_repo: Arc<dyn crate::features::abuse_shield::DeviceIdentityRepository> = Arc::new(
+        crate::features::abuse_shield::PgDeviceIdentityRepository::new(pool.clone())
+    );
+
+    // Cross-feature adapter for Auth -> AbuseShield
+    let guest_device_service: Arc<dyn crate::features::auth::GuestDeviceService> = Arc::new(
+        crate::common::app::adapters::GuestDeviceServiceAdapter::new(
+            device_identity_repo.clone(),
+            config.jwt_secret_key.clone(),
+        )
+    );
+
     // Auth
     let auth_repository: Arc<dyn AuthRepository> = Arc::new(AuthRepositoryImpl::new(pool.clone()));
     let register_user = Arc::new(RegisterUserCommand::new(auth_repository.clone()));
     let login_user = Arc::new(LoginUserCommand::new(auth_repository.clone()));
-    let auth_as_guest = Arc::new(AuthAsGuestCommand::new(auth_repository.clone()));
+    let auth_as_guest = Arc::new(AuthAsGuestCommand::new(auth_repository.clone(), guest_device_service));
     let user_exists = Arc::new(UserExistsQuery::new(auth_repository.clone()));
     let change_password = Arc::new(ChangePasswordCommand::new(auth_repository.clone()));
     let refresh_session = Arc::new(RefreshSessionCommand::new(auth_repository.clone()));
@@ -140,8 +153,16 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
         crate::common::app::adapters::PromoTrafficServiceAdapter::new(add_traffic.clone())
     );
 
+    let abuse_shield_service: Arc<dyn crate::features::promocode::AbuseShieldService> = Arc::new(
+        crate::common::app::adapters::AbuseShieldServiceAdapter::new(device_identity_repo)
+    );
+
     let get_or_create_trial = Arc::new(crate::features::promocode::GetOrCreateTrialPromoCodeCommand::new(promocode_repository.clone()));
-    let use_promocode = Arc::new(crate::features::promocode::UsePromoCodeCommand::new(promocode_repository.clone(), promo_traffic_service));
+    let use_promocode = Arc::new(crate::features::promocode::UsePromoCodeCommand::new(
+        promocode_repository.clone(),
+        promo_traffic_service,
+        abuse_shield_service,
+    ));
 
     let promocode_state = PromoCodeState::new(get_or_create_trial, use_promocode);
 

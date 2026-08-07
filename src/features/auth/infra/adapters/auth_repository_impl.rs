@@ -60,6 +60,15 @@ impl AuthRepository for AuthRepositoryImpl {
         username: Option<String>,
         password_hash: Option<String>,
     ) -> Result<String, AppError> {
+        self.create_user_with_auth_and_device(username, password_hash, None).await
+    }
+
+    async fn create_user_with_auth_and_device(
+        &self,
+        username: Option<String>,
+        password_hash: Option<String>,
+        device_identity_id: Option<uuid::Uuid>,
+    ) -> Result<String, AppError> {
         let mut tx = self.pool.begin().await?;
 
         if let Some(ref name) = username {
@@ -79,12 +88,13 @@ impl AuthRepository for AuthRepositoryImpl {
 
         sqlx::query(
             r#"
-                INSERT INTO users (id, username)
-                VALUES ($1::uuid, $2)
+                INSERT INTO users (id, username, device_identity_id)
+                VALUES ($1::uuid, $2, $3)
             "#,
         )
         .bind(&user_id)
         .bind(username)
+        .bind(device_identity_id)
         .execute(&mut *tx)
         .await?;
 

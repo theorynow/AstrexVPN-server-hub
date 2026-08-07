@@ -6,11 +6,12 @@ use crate::{
     },
     features::auth::api::{
         dto::{
-            request::{AuthUserDto, RefreshSessionDto, RegisterAuthUserDto},
+            request::{AuthUserDto, GuestAuthDto, RefreshSessionDto, RegisterAuthUserDto},
             response::RegisterResponseDto,
         },
         handlers::validation::{
-            validate_auth_user, validate_refresh_session, validate_register_auth_user,
+            validate_auth_user, validate_guest_auth, validate_refresh_session,
+            validate_register_auth_user,
         },
     },
 };
@@ -54,13 +55,20 @@ pub async fn login_user(
 #[utoipa::path(
     post,
     path = "/auth/guest",
+    request_body = GuestAuthDto,
     responses((status = 200, description = "Authenticate as guest", body = AuthBody)),
     tag = "UserAuth"
 )]
 pub async fn auth_as_guest(
     State(state): State<AuthState>,
+    Json(payload): Json<GuestAuthDto>,
 ) -> Result<impl IntoResponse, AppError> {
-    let auth_body = state.auth_as_guest.execute().await?;
+    validate_guest_auth(&payload)?;
+
+    let auth_body = state
+        .auth_as_guest
+        .execute(&payload.device_key, &payload.platform)
+        .await?;
     Ok(RestApiResponse::success(auth_body))
 }
 

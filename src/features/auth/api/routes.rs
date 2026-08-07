@@ -1,6 +1,6 @@
 use crate::common::app::state::AppState;
 use crate::features::auth::api::dto::{
-    request::{AuthUserDto, RefreshSessionDto, RegisterAuthUserDto},
+    request::{AuthUserDto, GuestAuthDto, RefreshSessionDto, RegisterAuthUserDto},
     response::RegisterResponseDto,
 };
 use axum::{routing::post, Router};
@@ -23,6 +23,7 @@ use utoipa::OpenApi;
         RegisterAuthUserDto,
         RegisterResponseDto,
         RefreshSessionDto,
+        GuestAuthDto,
         crate::common::security::jwt::AuthBody,
     )),
     tags(

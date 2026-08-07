@@ -25,6 +25,13 @@ pub struct RefreshSessionDto {
     pub refresh_token: String,
 }
 
+#[derive(Debug, Deserialize, ToSchema, Validate)]
+pub struct GuestAuthDto {
+    #[validate(length(min = 1, message = "Device key cannot be empty"))]
+    pub device_key: String,
+    pub platform: String,
+}
+
 impl From<RegisterAuthUserDto> for RegisterUser {
     fn from(dto: RegisterAuthUserDto) -> Self {
         Self {

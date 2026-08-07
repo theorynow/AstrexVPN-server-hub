@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     common::http::error::AppError,
     features::promocode::{
-        application::ports::{PromoCodeRepository, PromoTrafficService},
+        application::ports::{AbuseShieldService, PromoCodeRepository, PromoTrafficService},
         domain::model::PromoCodeRewardType,
     },
 };
@@ -18,16 +18,19 @@ pub struct UsePromoCodeResult {
 pub struct UsePromoCodeCommand {
     repo: Arc<dyn PromoCodeRepository>,
     promo_traffic_service: Arc<dyn PromoTrafficService>,
+    abuse_shield_service: Arc<dyn AbuseShieldService>,
 }
 
 impl UsePromoCodeCommand {
     pub fn new(
         repo: Arc<dyn PromoCodeRepository>,
         promo_traffic_service: Arc<dyn PromoTrafficService>,
+        abuse_shield_service: Arc<dyn AbuseShieldService>,
     ) -> Self {
         Self {
             repo,
             promo_traffic_service,
+            abuse_shield_service,
         }
     }
 
@@ -64,6 +67,10 @@ impl UsePromoCodeCommand {
             if count >= 1 {
                 return Err(AppError::PromoCodeTrialLimitReached);
             }
+
+            if self.abuse_shield_service.is_device_trial_redeemed(user_id).await? {
+                return Err(AppError::PromoCodeTrialLimitReached);
+            }
         }
 
         // Grant reward via PromoTrafficService cross-feature adapter
@@ -73,6 +80,10 @@ impl UsePromoCodeCommand {
 
         // Mark promo code as used
         self.repo.mark_as_used(&promocode.id, user_id).await?;
+
+        if promocode.reward_type == PromoCodeRewardType::Trial {
+            let _ = self.abuse_shield_service.mark_device_trial_redeemed(user_id).await;
+        }
 
         Ok(UsePromoCodeResult {
             reward_type: promocode.reward_type,
@@ -166,10 +177,28 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct MockAbuseShieldService {
+        redeemed: Mutex<bool>,
+    }
+
+    #[async_trait]
+    impl AbuseShieldService for MockAbuseShieldService {
+        async fn is_device_trial_redeemed(&self, _user_id: &str) -> Result<bool, AppError> {
+            Ok(*self.redeemed.lock().unwrap())
+        }
+
+        async fn mark_device_trial_redeemed(&self, _user_id: &str) -> Result<(), AppError> {
+            *self.redeemed.lock().unwrap() = true;
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn test_use_promocode_success() {
         let repo = Arc::new(MockPromoCodeRepository::default());
         let promo_traffic_service = Arc::new(MockPromoTrafficService::default());
+        let abuse_shield_service = Arc::new(MockAbuseShieldService::default());
 
         let code_id = Uuid::new_v4();
         let promocode = PromoCode {
@@ -186,7 +215,7 @@ mod tests {
         };
         repo.codes.lock().unwrap().push(promocode);
 
-        let cmd = UsePromoCodeCommand::new(repo.clone(), promo_traffic_service.clone());
+        let cmd = UsePromoCodeCommand::new(repo.clone(), promo_traffic_service.clone(), abuse_shield_service);
         let user_id = Uuid::new_v4().to_string();
 
         let result = cmd.execute(&user_id, "test1").await.unwrap();
@@ -207,7 +236,8 @@ mod tests {
     async fn test_use_promocode_trial_limit_one() {
         let repo = Arc::new(MockPromoCodeRepository::default());
         let promo_traffic_service = Arc::new(MockPromoTrafficService::default());
-        let cmd = UsePromoCodeCommand::new(repo.clone(), promo_traffic_service);
+        let abuse_shield_service = Arc::new(MockAbuseShieldService::default());
+        let cmd = UsePromoCodeCommand::new(repo.clone(), promo_traffic_service, abuse_shield_service);
         let user_id = Uuid::new_v4().to_string();
 
         // Add 2 trial promo codes
@@ -239,7 +269,8 @@ mod tests {
     async fn test_use_promocode_invalid_length() {
         let repo = Arc::new(MockPromoCodeRepository::default());
         let promo_traffic_service = Arc::new(MockPromoTrafficService::default());
-        let cmd = UsePromoCodeCommand::new(repo, promo_traffic_service);
+        let abuse_shield_service = Arc::new(MockAbuseShieldService::default());
+        let cmd = UsePromoCodeCommand::new(repo, promo_traffic_service, abuse_shield_service);
 
         let err = cmd.execute("user1", "TOOLONG123").await.unwrap_err();
         assert!(matches!(err, AppError::PromoCodeInvalidFormat));

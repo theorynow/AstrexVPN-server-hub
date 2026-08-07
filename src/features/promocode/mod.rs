@@ -8,6 +8,6 @@ pub use application::commands::{
     get_or_create_trial::GetOrCreateTrialPromoCodeCommand,
     use_promocode::UsePromoCodeCommand,
 };
-pub use application::ports::{PromoCodeRepository, PromoTrafficService};
+pub use application::ports::{AbuseShieldService, PromoCodeRepository, PromoTrafficService};
 pub use domain::model::{PromoCode, PromoCodeRewardType};
 pub use infra::adapters::PgPromoCodeRepository;
