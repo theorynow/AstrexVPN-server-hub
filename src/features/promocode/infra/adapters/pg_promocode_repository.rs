@@ -111,9 +111,12 @@ impl PromoCodeRepository for PgPromoCodeRepository {
         Ok(db_opt.map(Into::into))
     }
 
-    async fn find_active_trial_for_creator(&self, user_id: &str) -> Result<Option<PromoCode>, AppError> {
-        let parsed_uuid = uuid::Uuid::parse_str(user_id)
-            .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?;
+    async fn find_active_trial_for_creator(&self, user_id: Option<&str>) -> Result<Option<PromoCode>, AppError> {
+        let creator_uuid = match user_id {
+            Some(id) => uuid::Uuid::parse_str(id)
+                .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?,
+            None => return Ok(None),
+        };
 
         let db_opt = sqlx::query_as::<_, PromoCodeDb>(
             r#"
@@ -124,27 +127,26 @@ impl PromoCodeRepository for PgPromoCodeRepository {
             LIMIT 1
             "#
         )
-        .bind(parsed_uuid)
+        .bind(creator_uuid)
         .fetch_optional(&self.pool)
         .await?;
 
         Ok(db_opt.map(Into::into))
     }
 
-    async fn has_user_redeemed_reward_type(
+    async fn count_user_redeemed_reward_type(
         &self,
         user_id: &str,
         reward_type: PromoCodeRewardType,
-    ) -> Result<bool, AppError> {
+    ) -> Result<i64, AppError> {
         let parsed_uuid = uuid::Uuid::parse_str(user_id)
             .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?;
 
-        let row: (bool,) = sqlx::query_as(
+        let count: (i64,) = sqlx::query_as(
             r#"
-            SELECT EXISTS(
-                SELECT 1 FROM promocodes
-                WHERE used_by_user_id = $1 AND reward_type = $2 AND used_at IS NOT NULL
-            )
+            SELECT COUNT(*)::BIGINT
+            FROM promocodes
+            WHERE used_by_user_id = $1 AND reward_type = $2 AND used_at IS NOT NULL
             "#
         )
         .bind(parsed_uuid)
@@ -152,7 +154,7 @@ impl PromoCodeRepository for PgPromoCodeRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(row.0)
+        Ok(count.0)
     }
 
     async fn mark_as_used(&self, code_id: &uuid::Uuid, user_id: &str) -> Result<(), AppError> {

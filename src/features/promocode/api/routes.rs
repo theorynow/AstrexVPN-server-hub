@@ -1,4 +1,4 @@
-use axum::{routing::post, Router};
+use axum::{middleware, routing::post, Router};
 use utoipa::{
     openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
     OpenApi,
@@ -6,7 +6,7 @@ use utoipa::{
 
 use super::dto::{PromoCodeDto, UsePromoCodeDto, UsePromoCodeResponseDto};
 use super::handlers;
-use crate::common::app::state::AppState;
+use crate::common::{app::state::AppState, security::jwt};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -20,7 +20,6 @@ use crate::common::app::state::AppState;
         UsePromoCodeResponseDto
     )),
     tags((name = "Promocodes", description = "Promo code management endpoints")),
-    security(("bearer_auth" = [])),
     modifiers(&PromoCodeApiDoc)
 )]
 pub struct PromoCodeApiDoc;
@@ -41,8 +40,13 @@ impl utoipa::Modify for PromoCodeApiDoc {
     }
 }
 
-pub fn promocode_routes() -> Router<AppState> {
-    Router::new()
-        .route("/trial", post(handlers::get_trial_promocode))
+pub fn promocode_routes(state: AppState) -> Router<AppState> {
+    let protected = Router::new()
         .route("/use", post(handlers::use_promocode))
+        .route_layer(middleware::from_fn_with_state(state.clone(), jwt::jwt_auth));
+
+    let public = Router::new()
+        .route("/trial", post(handlers::get_trial_promocode));
+
+    Router::new().merge(public).merge(protected)
 }

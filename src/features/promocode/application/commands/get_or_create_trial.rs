@@ -32,7 +32,7 @@ impl GetOrCreateTrialPromoCodeCommand {
             .collect()
     }
 
-    pub async fn execute(&self, user_id: &str) -> Result<PromoCode, AppError> {
+    pub async fn execute(&self, user_id: Option<&str>) -> Result<PromoCode, AppError> {
         // 1. Check if user already created an active trial promo code
         if let Some(existing) = self.repo.find_active_trial_for_creator(user_id).await? {
             return Ok(existing);
@@ -49,7 +49,7 @@ impl GetOrCreateTrialPromoCodeCommand {
                         PromoCodeRewardType::Trial,
                         TRIAL_TRAFFIC_BYTES,
                         TRIAL_DURATION_DAYS,
-                        Some(user_id),
+                        user_id,
                         30, // Code expires in 30 days if unclaimed
                     )
                     .await;
@@ -110,8 +110,11 @@ mod tests {
                 .cloned())
         }
 
-        async fn find_active_trial_for_creator(&self, user_id: &str) -> Result<Option<PromoCode>, AppError> {
-            let uid = Uuid::parse_str(user_id).unwrap();
+        async fn find_active_trial_for_creator(&self, user_id: Option<&str>) -> Result<Option<PromoCode>, AppError> {
+            let uid = match user_id {
+                Some(id) => Uuid::parse_str(id).unwrap(),
+                None => return Ok(None),
+            };
             Ok(self
                 .codes
                 .lock()
@@ -121,12 +124,12 @@ mod tests {
                 .cloned())
         }
 
-        async fn has_user_redeemed_reward_type(
+        async fn count_user_redeemed_reward_type(
             &self,
             _user_id: &str,
             _reward_type: PromoCodeRewardType,
-        ) -> Result<bool, AppError> {
-            Ok(false)
+        ) -> Result<i64, AppError> {
+            Ok(0)
         }
 
         async fn mark_as_used(&self, _code_id: &Uuid, _user_id: &str) -> Result<(), AppError> {
@@ -147,12 +150,16 @@ mod tests {
         let cmd = GetOrCreateTrialPromoCodeCommand::new(repo);
         let user_id = Uuid::new_v4().to_string();
 
-        let code1 = cmd.execute(&user_id).await.unwrap();
+        let code1 = cmd.execute(Some(&user_id)).await.unwrap();
         assert_eq!(code1.code.len(), 5);
         assert_eq!(code1.reward_type, PromoCodeRewardType::Trial);
 
         // Subsequent call returns the existing active trial code
-        let code2 = cmd.execute(&user_id).await.unwrap();
+        let code2 = cmd.execute(Some(&user_id)).await.unwrap();
         assert_eq!(code1.code, code2.code);
+
+        // Unauthenticated call generates a trial code without error
+        let code_anon = cmd.execute(None).await.unwrap();
+        assert_eq!(code_anon.code.len(), 5);
     }
 }

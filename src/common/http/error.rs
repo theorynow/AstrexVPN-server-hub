@@ -55,6 +55,17 @@ pub enum AppError {
 
     #[error("User has no remaining traffic")]
     TrafficExhausted,
+
+    #[error("Promo code not found")]
+    PromoCodeNotFound,
+    #[error("Promo code already used")]
+    PromoCodeAlreadyUsed,
+    #[error("Promo code expired")]
+    PromoCodeExpired,
+    #[error("Trial promo code limit reached")]
+    PromoCodeTrialLimitReached,
+    #[error("Invalid promo code format")]
+    PromoCodeInvalidFormat,
 }
 
 impl AppError {
@@ -75,6 +86,11 @@ impl AppError {
             AppError::UserAlreadyExists => "USER_ALREADY_EXISTS",
             AppError::NodeRejectedAction => "NODE_REJECTED_ACTION",
             AppError::TrafficExhausted => "TRAFFIC_EXHAUSTED",
+            AppError::PromoCodeNotFound => "PROMO_CODE_NOT_FOUND",
+            AppError::PromoCodeAlreadyUsed => "PROMO_CODE_ALREADY_USED",
+            AppError::PromoCodeExpired => "PROMO_CODE_EXPIRED",
+            AppError::PromoCodeTrialLimitReached => "PROMO_CODE_TRIAL_LIMIT_REACHED",
+            AppError::PromoCodeInvalidFormat => "PROMO_CODE_INVALID_FORMAT",
         }
     }
 }
@@ -99,6 +115,11 @@ impl IntoResponse for AppError {
             AppError::UserAlreadyExists => StatusCode::CONFLICT,
             AppError::NodeRejectedAction => StatusCode::BAD_REQUEST,
             AppError::TrafficExhausted => StatusCode::FORBIDDEN,
+            AppError::PromoCodeNotFound => StatusCode::NOT_FOUND,
+            AppError::PromoCodeAlreadyUsed => StatusCode::BAD_REQUEST,
+            AppError::PromoCodeExpired => StatusCode::BAD_REQUEST,
+            AppError::PromoCodeTrialLimitReached => StatusCode::BAD_REQUEST,
+            AppError::PromoCodeInvalidFormat => StatusCode::BAD_REQUEST,
         };
 
         let message = self.error_code().to_string();
@@ -164,5 +185,10 @@ mod tests {
         assert_eq!(AppError::UserAlreadyExists.error_code(), "USER_ALREADY_EXISTS");
         assert_eq!(AppError::NodeRejectedAction.error_code(), "NODE_REJECTED_ACTION");
         assert_eq!(AppError::TrafficExhausted.error_code(), "TRAFFIC_EXHAUSTED");
+        assert_eq!(AppError::PromoCodeNotFound.error_code(), "PROMO_CODE_NOT_FOUND");
+        assert_eq!(AppError::PromoCodeAlreadyUsed.error_code(), "PROMO_CODE_ALREADY_USED");
+        assert_eq!(AppError::PromoCodeExpired.error_code(), "PROMO_CODE_EXPIRED");
+        assert_eq!(AppError::PromoCodeTrialLimitReached.error_code(), "PROMO_CODE_TRIAL_LIMIT_REACHED");
+        assert_eq!(AppError::PromoCodeInvalidFormat.error_code(), "PROMO_CODE_INVALID_FORMAT");
     }
 }

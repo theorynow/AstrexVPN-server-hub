@@ -21,3 +21,18 @@ where
             .ok_or(AppError::InvalidToken)
     }
 }
+
+#[derive(Debug, Clone, Default)]
+pub struct OptionalCurrentUser(pub Option<CurrentUser>);
+
+impl<S> FromRequestParts<S> for OptionalCurrentUser
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let user = parts.extensions.get::<CurrentUser>().cloned();
+        Ok(OptionalCurrentUser(user))
+    }
+}

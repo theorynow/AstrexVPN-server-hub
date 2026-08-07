@@ -74,16 +74,20 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/user", user_routes())
         .nest("/nodes", node_routes())
         .nest("/traffic", traffic_routes())
-        .nest("/promocodes", promocode_routes())
         // enforce JWT authentication
         .route_layer(middleware::from_fn_with_state(state.clone(), jwt::jwt_auth))
         // attach inspecter
+        .layer(middleware::from_fn(make_request_response_inspecter(true)));
+
+    let promocode_router = Router::new()
+        .nest("/promocodes", promocode_routes(state.clone()))
         .layer(middleware::from_fn(make_request_response_inspecter(true)));
 
     // Create the API routes router that we want to trace and assign request IDs to
     let api_routes = Router::new()
         .merge(auth_router)
         .merge(protected_routes)
+        .merge(promocode_router)
         .merge(create_swagger_ui())
         .layer(middleware::from_fn(request_id_middleware))
         .layer(
