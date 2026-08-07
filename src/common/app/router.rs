@@ -28,8 +28,9 @@ use crate::{
     features::{
         auth::user_auth_routes,
         nodes::{node_routes, ws_routes},
-        user::user_routes,
+        promocode::promocode_routes,
         traffic::traffic_routes,
+        user::user_routes,
     },
 };
 
@@ -73,6 +74,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/user", user_routes())
         .nest("/nodes", node_routes())
         .nest("/traffic", traffic_routes())
+        .nest("/promocodes", promocode_routes())
         // enforce JWT authentication
         .route_layer(middleware::from_fn_with_state(state.clone(), jwt::jwt_auth))
         // attach inspecter

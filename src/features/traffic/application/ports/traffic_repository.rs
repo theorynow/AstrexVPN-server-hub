@@ -10,8 +10,11 @@ pub trait TrafficRepository: Send + Sync {
     /// all active (non-expired) packets. Returns a zero summary if no packets exist.
     async fn get_summary(&self, user_id: &str) -> Result<TrafficSummary, AppError>;
 
-    /// Adds a new traffic packet for a user. The packet is always valid for 30 days.
+    /// Adds a new traffic packet for a user with default 30 days validity.
     async fn add_packet(&self, user_id: &str, bytes: i64) -> Result<TrafficPacket, AppError>;
+
+    /// Adds a new traffic packet for a user with custom validity duration in days.
+    async fn add_packet_with_expiry(&self, user_id: &str, bytes: i64, duration_days: i64) -> Result<TrafficPacket, AppError>;
 
     /// Deducts `bytes` from the user's active packets in ascending remaining-traffic order.
     /// Returns the total remaining bytes after deduction.

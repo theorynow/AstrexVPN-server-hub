@@ -103,10 +103,19 @@ impl TrafficRepository for PgTrafficRepository {
     }
 
     async fn add_packet(&self, user_id: &str, bytes: i64) -> Result<TrafficPacket, AppError> {
+        self.add_packet_with_expiry(user_id, bytes, 30).await
+    }
+
+    async fn add_packet_with_expiry(
+        &self,
+        user_id: &str,
+        bytes: i64,
+        duration_days: i64,
+    ) -> Result<TrafficPacket, AppError> {
         let parsed_uuid = uuid::Uuid::parse_str(user_id)
             .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?;
 
-        let expires_at = Utc::now() + chrono::Duration::days(30);
+        let expires_at = Utc::now() + chrono::Duration::days(duration_days);
 
         let db_packet = sqlx::query_as::<_, TrafficPacketDb>(
             r#"

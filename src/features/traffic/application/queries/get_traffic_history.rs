@@ -41,6 +41,10 @@ mod tests {
             unimplemented!()
         }
 
+        async fn add_packet_with_expiry(&self, _user_id: &str, _bytes: i64, _duration_days: i64) -> Result<TrafficPacket, AppError> {
+            unimplemented!()
+        }
+
         async fn consume(&self, _user_id: &str, _bytes: u64) -> Result<u64, AppError> {
             unimplemented!()
         }

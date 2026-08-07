@@ -18,11 +18,25 @@ impl AddTrafficCommand {
     }
 
     pub async fn execute(&self, user_id: &str, bytes: i64) -> Result<TrafficPacket, AppError> {
+        self.execute_with_expiry(user_id, bytes, 30).await
+    }
+
+    pub async fn execute_with_expiry(
+        &self,
+        user_id: &str,
+        bytes: i64,
+        duration_days: i64,
+    ) -> Result<TrafficPacket, AppError> {
         if bytes <= 0 {
             return Err(AppError::ValidationError(
                 "Traffic bytes must be greater than zero".into(),
             ));
         }
-        self.repo.add_packet(user_id, bytes).await
+        if duration_days <= 0 {
+            return Err(AppError::ValidationError(
+                "Duration days must be greater than zero".into(),
+            ));
+        }
+        self.repo.add_packet_with_expiry(user_id, bytes, duration_days).await
     }
 }

@@ -5,7 +5,7 @@ use sqlx::{migrate::MigrateError, PgPool};
 
 use crate::common::app::{
     config::Config,
-    state::{AppState, AuthState, NodesState, UserState, TrafficState},
+    state::{AppState, AuthState, NodesState, PromoCodeState, TrafficState, UserState},
 };
 use crate::features::auth::{
     AuthAsGuestCommand, AuthRepository, AuthRepositoryImpl, ChangePasswordCommand,
@@ -76,7 +76,7 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
     let get_remaining_traffic = Arc::new(crate::features::traffic::GetRemainingTrafficQuery::new(traffic_repository.clone()));
 
     let traffic_state = TrafficState::new(
-        add_traffic,
+        add_traffic.clone(),
         subtract_traffic,
         set_traffic,
         get_ws_tokens,
@@ -132,7 +132,20 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
     let node_commander = Arc::new(WsCommanderImpl::new());
     let nodes_state = NodesState::new(nodes_repo, node_commander, user_traffic_service);
 
-    let state = AppState::new(config, pool.clone(), auth_state, user_state, nodes_state, traffic_state);
+    // Promocode
+    let pg_promocode_repo = Arc::new(crate::features::promocode::PgPromoCodeRepository::new(pool.clone()));
+    let promocode_repository: Arc<dyn crate::features::promocode::PromoCodeRepository> = pg_promocode_repo.clone();
+
+    let promo_traffic_service: Arc<dyn crate::features::promocode::PromoTrafficService> = Arc::new(
+        crate::common::app::adapters::PromoTrafficServiceAdapter::new(add_traffic.clone())
+    );
+
+    let get_or_create_trial = Arc::new(crate::features::promocode::GetOrCreateTrialPromoCodeCommand::new(promocode_repository.clone()));
+    let use_promocode = Arc::new(crate::features::promocode::UsePromoCodeCommand::new(promocode_repository.clone(), promo_traffic_service));
+
+    let promocode_state = PromoCodeState::new(get_or_create_trial, use_promocode);
+
+    let state = AppState::new(config, pool.clone(), auth_state, user_state, nodes_state, traffic_state, promocode_state);
 
     tracing::info!("Application state built");
 
