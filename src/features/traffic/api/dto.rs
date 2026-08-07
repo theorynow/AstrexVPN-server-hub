@@ -2,20 +2,8 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct AddTrafficDto {
-    pub user_id: String,
-    pub mb: i64,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct SubtractTrafficDto {
-    pub user_id: String,
-    pub mb: u64,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
 pub struct SetTrafficDto {
-    pub user_id: String,
+    pub user_id: Option<String>,
     pub mb: u64,
 }
 

@@ -5,7 +5,7 @@ use utoipa::{
 };
 
 use super::dto::{
-    AddTrafficDto, CentrifugeTokenDto, SetTrafficDto, SubtractTrafficDto, TrafficHistoryItemDto,
+    CentrifugeTokenDto, SetTrafficDto, TrafficHistoryItemDto,
     TrafficHistoryResponseDto, TrafficPacketDto, TrafficSummaryDto,
 };
 use super::handlers;
@@ -14,16 +14,12 @@ use crate::common::app::state::AppState;
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        handlers::add_traffic,
-        handlers::subtract_traffic,
         handlers::set_traffic,
         handlers::get_ws_tokens,
         handlers::get_my_traffic,
         handlers::get_traffic_history
     ),
     components(schemas(
-        AddTrafficDto,
-        SubtractTrafficDto,
         SetTrafficDto,
         TrafficPacketDto,
         CentrifugeTokenDto,
@@ -55,8 +51,6 @@ impl utoipa::Modify for TrafficApiDoc {
 
 pub fn traffic_routes() -> Router<AppState> {
     Router::new()
-        .route("/add", post(handlers::add_traffic))
-        .route("/subtract", post(handlers::subtract_traffic))
         .route("/set", post(handlers::set_traffic))
         .route("/ws-tokens", axum::routing::get(handlers::get_ws_tokens))
         .route("/me", axum::routing::get(handlers::get_my_traffic))
