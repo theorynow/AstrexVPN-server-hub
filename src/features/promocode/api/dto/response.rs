@@ -9,6 +9,8 @@ pub struct PromoCodeResponseDto {
     pub reward_type: String,
     pub reward_bytes: i64,
     pub duration_days: i32,
+    pub max_uses: i32,
+    pub current_uses: i32,
     pub expires_at: String,
 }
 
@@ -20,6 +22,8 @@ impl From<PromoCode> for PromoCodeResponseDto {
             reward_type: p.reward_type.to_string(),
             reward_bytes: p.reward_bytes,
             duration_days: p.duration_days,
+            max_uses: p.max_uses,
+            current_uses: p.current_uses,
             expires_at: p.expires_at.to_rfc3339(),
         }
     }

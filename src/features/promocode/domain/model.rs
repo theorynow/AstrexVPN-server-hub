@@ -40,10 +40,10 @@ pub struct PromoCode {
     pub reward_type: PromoCodeRewardType,
     pub reward_bytes: i64,
     pub duration_days: i32,
+    pub max_uses: i32,
+    pub current_uses: i32,
     pub created_by_user_id: Option<uuid::Uuid>,
-    pub used_by_user_id: Option<uuid::Uuid>,
     pub expires_at: DateTime<Utc>,
-    pub used_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -53,6 +53,6 @@ impl PromoCode {
     }
 
     pub fn is_used(&self) -> bool {
-        self.used_at.is_some() || self.used_by_user_id.is_some()
+        self.current_uses >= self.max_uses
     }
 }

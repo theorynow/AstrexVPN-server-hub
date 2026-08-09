@@ -49,6 +49,7 @@ impl GetOrCreateTrialPromoCodeCommand {
                         PromoCodeRewardType::Trial,
                         TRIAL_TRAFFIC_BYTES,
                         TRIAL_DURATION_DAYS,
+                        1, // max_uses = 1 for trial codes
                         user_id,
                         30, // Code expires in 30 days if unclaimed
                     )
@@ -81,6 +82,7 @@ mod tests {
             reward_type: PromoCodeRewardType,
             reward_bytes: i64,
             duration_days: i32,
+            max_uses: i32,
             created_by_user_id: Option<&str>,
             expires_in_days: i64,
         ) -> Result<PromoCode, AppError> {
@@ -90,10 +92,10 @@ mod tests {
                 reward_type,
                 reward_bytes,
                 duration_days,
+                max_uses,
+                current_uses: 0,
                 created_by_user_id: created_by_user_id.map(|s| Uuid::parse_str(s).unwrap()),
-                used_by_user_id: None,
                 expires_at: Utc::now() + chrono::Duration::days(expires_in_days),
-                used_at: None,
                 created_at: Utc::now(),
             };
             self.codes.lock().unwrap().push(promocode.clone());
@@ -122,6 +124,10 @@ mod tests {
                 .iter()
                 .find(|c| c.created_by_user_id == Some(uid) && !c.is_used() && !c.is_expired())
                 .cloned())
+        }
+
+        async fn has_user_redeemed_code(&self, _user_id: &str, _promocode_id: &Uuid) -> Result<bool, AppError> {
+            Ok(false)
         }
 
         async fn count_user_redeemed_reward_type(

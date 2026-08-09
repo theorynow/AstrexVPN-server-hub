@@ -28,10 +28,10 @@ struct PromoCodeDb {
     reward_type: String,
     reward_bytes: i64,
     duration_days: i32,
+    max_uses: i32,
+    current_uses: i32,
     created_by_user_id: Option<uuid::Uuid>,
-    used_by_user_id: Option<uuid::Uuid>,
     expires_at: DateTime<Utc>,
-    used_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
 }
 
@@ -47,10 +47,10 @@ impl From<PromoCodeDb> for PromoCode {
             reward_type,
             reward_bytes: db.reward_bytes,
             duration_days: db.duration_days,
+            max_uses: db.max_uses,
+            current_uses: db.current_uses,
             created_by_user_id: db.created_by_user_id,
-            used_by_user_id: db.used_by_user_id,
             expires_at: db.expires_at,
-            used_at: db.used_at,
             created_at: db.created_at,
         }
     }
@@ -64,6 +64,7 @@ impl PromoCodeRepository for PgPromoCodeRepository {
         reward_type: PromoCodeRewardType,
         reward_bytes: i64,
         duration_days: i32,
+        max_uses: i32,
         created_by_user_id: Option<&str>,
         expires_in_days: i64,
     ) -> Result<PromoCode, AppError> {
@@ -79,15 +80,16 @@ impl PromoCodeRepository for PgPromoCodeRepository {
 
         let db = sqlx::query_as::<_, PromoCodeDb>(
             r#"
-            INSERT INTO promocodes (code, reward_type, reward_bytes, duration_days, created_by_user_id, expires_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, code, reward_type, reward_bytes, duration_days, created_by_user_id, used_by_user_id, expires_at, used_at, created_at
+            INSERT INTO promocodes (code, reward_type, reward_bytes, duration_days, max_uses, created_by_user_id, expires_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, code, reward_type, reward_bytes, duration_days, max_uses, current_uses, created_by_user_id, expires_at, created_at
             "#
         )
         .bind(code.to_uppercase())
         .bind(reward_type.as_str())
         .bind(reward_bytes)
         .bind(duration_days)
+        .bind(max_uses)
         .bind(creator_uuid)
         .bind(expires_at)
         .fetch_one(&self.pool)
@@ -99,7 +101,7 @@ impl PromoCodeRepository for PgPromoCodeRepository {
     async fn find_by_code(&self, code: &str) -> Result<Option<PromoCode>, AppError> {
         let db_opt = sqlx::query_as::<_, PromoCodeDb>(
             r#"
-            SELECT id, code, reward_type, reward_bytes, duration_days, created_by_user_id, used_by_user_id, expires_at, used_at, created_at
+            SELECT id, code, reward_type, reward_bytes, duration_days, max_uses, current_uses, created_by_user_id, expires_at, created_at
             FROM promocodes
             WHERE UPPER(code) = UPPER($1)
             "#
@@ -120,9 +122,9 @@ impl PromoCodeRepository for PgPromoCodeRepository {
 
         let db_opt = sqlx::query_as::<_, PromoCodeDb>(
             r#"
-            SELECT id, code, reward_type, reward_bytes, duration_days, created_by_user_id, used_by_user_id, expires_at, used_at, created_at
+            SELECT id, code, reward_type, reward_bytes, duration_days, max_uses, current_uses, created_by_user_id, expires_at, created_at
             FROM promocodes
-            WHERE created_by_user_id = $1 AND reward_type = 'TRIAL' AND used_at IS NULL AND expires_at > now()
+            WHERE created_by_user_id = $1 AND reward_type = 'TRIAL' AND current_uses < max_uses AND expires_at > now()
             ORDER BY created_at DESC
             LIMIT 1
             "#
@@ -132,6 +134,26 @@ impl PromoCodeRepository for PgPromoCodeRepository {
         .await?;
 
         Ok(db_opt.map(Into::into))
+    }
+
+    async fn has_user_redeemed_code(&self, user_id: &str, promocode_id: &uuid::Uuid) -> Result<bool, AppError> {
+        let parsed_user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?;
+
+        let row: (bool,) = sqlx::query_as(
+            r#"
+            SELECT EXISTS(
+                SELECT 1 FROM promocode_redemptions
+                WHERE promocode_id = $1 AND user_id = $2
+            )
+            "#
+        )
+        .bind(promocode_id)
+        .bind(parsed_user_uuid)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(row.0)
     }
 
     async fn count_user_redeemed_reward_type(
@@ -145,8 +167,9 @@ impl PromoCodeRepository for PgPromoCodeRepository {
         let count: (i64,) = sqlx::query_as(
             r#"
             SELECT COUNT(*)::BIGINT
-            FROM promocodes
-            WHERE used_by_user_id = $1 AND reward_type = $2 AND used_at IS NOT NULL
+            FROM promocode_redemptions r
+            JOIN promocodes p ON r.promocode_id = p.id
+            WHERE r.user_id = $1 AND p.reward_type = $2
             "#
         )
         .bind(parsed_uuid)
@@ -161,17 +184,31 @@ impl PromoCodeRepository for PgPromoCodeRepository {
         let parsed_user_uuid = uuid::Uuid::parse_str(user_id)
             .map_err(|e| AppError::ValidationError(format!("Invalid UUID format: {}", e)))?;
 
+        let mut tx = self.pool.begin().await?;
+
         sqlx::query(
             r#"
             UPDATE promocodes
-            SET used_by_user_id = $2, used_at = now()
+            SET current_uses = current_uses + 1
             WHERE id = $1
             "#
         )
         .bind(code_id)
-        .bind(parsed_user_uuid)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO promocode_redemptions (promocode_id, user_id)
+            VALUES ($1, $2)
+            "#
+        )
+        .bind(code_id)
+        .bind(parsed_user_uuid)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
 
         Ok(())
     }

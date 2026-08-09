@@ -59,6 +59,10 @@ impl UsePromoCodeCommand {
             return Err(AppError::PromoCodeExpired);
         }
 
+        if self.repo.has_user_redeemed_code(user_id, &promocode.id).await? {
+            return Err(AppError::PromoCodeAlreadyUsed);
+        }
+
         if promocode.reward_type == PromoCodeRewardType::Trial {
             let count = self
                 .repo
@@ -78,7 +82,7 @@ impl UsePromoCodeCommand {
             .grant_traffic(user_id, promocode.reward_bytes, promocode.duration_days as i64)
             .await?;
 
-        // Mark promo code as used
+        // Mark promo code as used (increments current_uses, records redemption)
         self.repo.mark_as_used(&promocode.id, user_id).await?;
 
         if promocode.reward_type == PromoCodeRewardType::Trial {
@@ -105,7 +109,7 @@ mod tests {
     #[derive(Default)]
     struct MockPromoCodeRepository {
         codes: Mutex<Vec<PromoCode>>,
-        redeemed_users: Mutex<Vec<(String, PromoCodeRewardType)>>,
+        redemptions: Mutex<Vec<(Uuid, String)>>, // (promocode_id, user_id)
     }
 
     #[async_trait]
@@ -116,6 +120,7 @@ mod tests {
             _reward_type: PromoCodeRewardType,
             _reward_bytes: i64,
             _duration_days: i32,
+            _max_uses: i32,
             _created_by_user_id: Option<&str>,
             _expires_in_days: i64,
         ) -> Result<PromoCode, AppError> {
@@ -136,30 +141,38 @@ mod tests {
             unimplemented!()
         }
 
-        async fn count_user_redeemed_reward_type(
-            &self,
-            user_id: &str,
-            reward_type: PromoCodeRewardType,
-        ) -> Result<i64, AppError> {
+        async fn has_user_redeemed_code(&self, user_id: &str, promocode_id: &Uuid) -> Result<bool, AppError> {
             Ok(self
-                .redeemed_users
+                .redemptions
                 .lock()
                 .unwrap()
                 .iter()
-                .filter(|(u, r)| u == user_id && *r == reward_type)
+                .any(|(pid, u)| pid == promocode_id && u == user_id))
+        }
+
+        async fn count_user_redeemed_reward_type(
+            &self,
+            user_id: &str,
+            _reward_type: PromoCodeRewardType,
+        ) -> Result<i64, AppError> {
+            Ok(self
+                .redemptions
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(_, u)| u == user_id)
                 .count() as i64)
         }
 
         async fn mark_as_used(&self, code_id: &Uuid, user_id: &str) -> Result<(), AppError> {
             let mut list = self.codes.lock().unwrap();
             if let Some(c) = list.iter_mut().find(|c| c.id == *code_id) {
-                c.used_at = Some(Utc::now());
-                c.used_by_user_id = Some(Uuid::parse_str(user_id).unwrap());
+                c.current_uses += 1;
             }
-            self.redeemed_users
+            self.redemptions
                 .lock()
                 .unwrap()
-                .push((user_id.to_string(), PromoCodeRewardType::Trial));
+                .push((*code_id, user_id.to_string()));
             Ok(())
         }
     }
@@ -179,17 +192,17 @@ mod tests {
 
     #[derive(Default)]
     struct MockAbuseShieldService {
-        redeemed: Mutex<bool>,
+        redeemed_users: Mutex<Vec<String>>,
     }
 
     #[async_trait]
     impl AbuseShieldService for MockAbuseShieldService {
-        async fn is_device_trial_redeemed(&self, _user_id: &str) -> Result<bool, AppError> {
-            Ok(*self.redeemed.lock().unwrap())
+        async fn is_device_trial_redeemed(&self, user_id: &str) -> Result<bool, AppError> {
+            Ok(self.redeemed_users.lock().unwrap().contains(&user_id.to_string()))
         }
 
-        async fn mark_device_trial_redeemed(&self, _user_id: &str) -> Result<(), AppError> {
-            *self.redeemed.lock().unwrap() = true;
+        async fn mark_device_trial_redeemed(&self, user_id: &str) -> Result<(), AppError> {
+            self.redeemed_users.lock().unwrap().push(user_id.to_string());
             Ok(())
         }
     }
@@ -207,10 +220,10 @@ mod tests {
             reward_type: PromoCodeRewardType::Trial,
             reward_bytes: 10 * 1024 * 1024 * 1024,
             duration_days: 7,
+            max_uses: 1,
+            current_uses: 0,
             created_by_user_id: None,
-            used_by_user_id: None,
             expires_at: Utc::now() + chrono::Duration::days(30),
-            used_at: None,
             created_at: Utc::now(),
         };
         repo.codes.lock().unwrap().push(promocode);
@@ -233,6 +246,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_use_promocode_multi_use_success() {
+        let repo = Arc::new(MockPromoCodeRepository::default());
+        let promo_traffic_service = Arc::new(MockPromoTrafficService::default());
+        let abuse_shield_service = Arc::new(MockAbuseShieldService::default());
+
+        let code_id = Uuid::new_v4();
+        let promocode = PromoCode {
+            id: code_id,
+            code: "MULTI".to_string(),
+            reward_type: PromoCodeRewardType::Trial,
+            reward_bytes: 10 * 1024 * 1024 * 1024,
+            duration_days: 7,
+            max_uses: 2,
+            current_uses: 0,
+            created_by_user_id: None,
+            expires_at: Utc::now() + chrono::Duration::days(30),
+            created_at: Utc::now(),
+        };
+        repo.codes.lock().unwrap().push(promocode);
+
+        let cmd = UsePromoCodeCommand::new(repo.clone(), promo_traffic_service, abuse_shield_service);
+        let user1 = Uuid::new_v4().to_string();
+        let user2 = Uuid::new_v4().to_string();
+        let user3 = Uuid::new_v4().to_string();
+
+        // User 1 redeems -> OK (1/2)
+        assert!(cmd.execute(&user1, "MULTI").await.is_ok());
+
+        // User 1 tries redeeming same code again -> fails with PromoCodeAlreadyUsed
+        let err_same = cmd.execute(&user1, "MULTI").await.unwrap_err();
+        assert!(matches!(err_same, AppError::PromoCodeAlreadyUsed));
+
+        // User 2 redeems -> OK (2/2)
+        assert!(cmd.execute(&user2, "MULTI").await.is_ok());
+
+        // User 3 tries redeeming -> fails as depleted (current_uses >= max_uses)
+        let err_depleted = cmd.execute(&user3, "MULTI").await.unwrap_err();
+        assert!(matches!(err_depleted, AppError::PromoCodeAlreadyUsed));
+    }
+
+    #[tokio::test]
     async fn test_use_promocode_trial_limit_one() {
         let repo = Arc::new(MockPromoCodeRepository::default());
         let promo_traffic_service = Arc::new(MockPromoTrafficService::default());
@@ -248,10 +302,10 @@ mod tests {
                 reward_type: PromoCodeRewardType::Trial,
                 reward_bytes: 10 * 1024 * 1024 * 1024,
                 duration_days: 7,
+                max_uses: 1,
+                current_uses: 0,
                 created_by_user_id: None,
-                used_by_user_id: None,
                 expires_at: Utc::now() + chrono::Duration::days(30),
-                used_at: None,
                 created_at: Utc::now(),
             };
             repo.codes.lock().unwrap().push(promocode);
