@@ -1,21 +1,21 @@
-use axum::{middleware, routing::post, Router};
+use axum::{middleware, routing::{get, post}, Router};
 use utoipa::{
     openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
     OpenApi,
 };
 
-use super::dto::{PromoCodeDto, UsePromoCodeDto, UsePromoCodeResponseDto};
+use super::dto::{PromoCodeInfoDto, UsePromoCodeDto, UsePromoCodeResponseDto};
 use super::handlers;
 use crate::common::{app::state::AppState, security::jwt};
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        handlers::get_trial_promocode,
+        handlers::get_promocode_info,
         handlers::use_promocode
     ),
     components(schemas(
-        PromoCodeDto,
+        PromoCodeInfoDto,
         UsePromoCodeDto,
         UsePromoCodeResponseDto
     )),
@@ -46,7 +46,7 @@ pub fn promocode_routes(state: AppState) -> Router<AppState> {
         .route_layer(middleware::from_fn_with_state(state.clone(), jwt::jwt_auth));
 
     let public = Router::new()
-        .route("/trial", post(handlers::get_trial_promocode));
+        .route("/info/{code}", get(handlers::get_promocode_info));
 
     Router::new().merge(public).merge(protected)
 }

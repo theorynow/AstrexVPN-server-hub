@@ -157,14 +157,14 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
         crate::common::app::adapters::AbuseShieldServiceAdapter::new(device_identity_repo)
     );
 
-    let get_or_create_trial = Arc::new(crate::features::promocode::GetOrCreateTrialPromoCodeCommand::new(promocode_repository.clone()));
+    let get_info = Arc::new(crate::features::promocode::GetPromoCodeInfoQuery::new(promocode_repository.clone()));
     let use_promocode = Arc::new(crate::features::promocode::UsePromoCodeCommand::new(
         promocode_repository.clone(),
         promo_traffic_service,
         abuse_shield_service,
     ));
 
-    let promocode_state = PromoCodeState::new(get_or_create_trial, use_promocode);
+    let promocode_state = PromoCodeState::new(get_info, use_promocode);
 
     let state = AppState::new(config, pool.clone(), auth_state, user_state, nodes_state, traffic_state, promocode_state);
 

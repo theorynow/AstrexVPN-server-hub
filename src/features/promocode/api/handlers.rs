@@ -1,32 +1,34 @@
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{
+    extract::{Path, State},
+    response::IntoResponse,
+    Json,
+};
 
 use crate::{
     common::app::state::AppState,
     common::http::{
-        current_user::{CurrentUser, OptionalCurrentUser},
+        current_user::CurrentUser,
         dto::RestApiResponse,
         error::AppError,
     },
-    features::promocode::api::dto::{PromoCodeDto, UsePromoCodeDto, UsePromoCodeResponseDto},
+    features::promocode::api::dto::{PromoCodeInfoDto, UsePromoCodeDto, UsePromoCodeResponseDto},
 };
 
 #[utoipa::path(
-    post,
-    path = "/promocodes/trial",
-    responses((status = 200, description = "Get or create trial promo code", body = PromoCodeDto)),
+    get,
+    path = "/promocodes/info/{code}",
+    responses(
+        (status = 200, description = "Get promo code information including remaining uses", body = PromoCodeInfoDto),
+        (status = 404, description = "Promo code not found")
+    ),
     tag = "Promocodes"
 )]
-pub async fn get_trial_promocode(
+pub async fn get_promocode_info(
     State(state): State<AppState>,
-    OptionalCurrentUser(current_user): OptionalCurrentUser,
+    Path(code): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user_id = current_user.map(|u| u.user_id);
-    let promocode = state
-        .promocode
-        .get_or_create_trial
-        .execute(user_id.as_deref())
-        .await?;
-    let dto: PromoCodeDto = promocode.into();
+    let promocode = state.promocode.get_info.execute(&code).await?;
+    let dto: PromoCodeInfoDto = promocode.into();
     Ok(RestApiResponse::success(dto))
 }
 
@@ -34,7 +36,7 @@ pub async fn get_trial_promocode(
     post,
     path = "/promocodes/use",
     request_body = UsePromoCodeDto,
-    responses((status = 200, description = "Redeem a 5-character promo code", body = UsePromoCodeResponseDto)),
+    responses((status = 200, description = "Redeem a promo code", body = UsePromoCodeResponseDto)),
     tag = "Promocodes",
     security(("bearer_auth" = []))
 )]

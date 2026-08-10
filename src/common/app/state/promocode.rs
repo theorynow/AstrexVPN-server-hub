@@ -1,22 +1,22 @@
 use std::sync::Arc;
 
 use crate::features::promocode::{
-    GetOrCreateTrialPromoCodeCommand, UsePromoCodeCommand,
+    GetPromoCodeInfoQuery, UsePromoCodeCommand,
 };
 
 #[derive(Clone)]
 pub struct PromoCodeState {
-    pub get_or_create_trial: Arc<GetOrCreateTrialPromoCodeCommand>,
+    pub get_info: Arc<GetPromoCodeInfoQuery>,
     pub use_promocode: Arc<UsePromoCodeCommand>,
 }
 
 impl PromoCodeState {
     pub fn new(
-        get_or_create_trial: Arc<GetOrCreateTrialPromoCodeCommand>,
+        get_info: Arc<GetPromoCodeInfoQuery>,
         use_promocode: Arc<UsePromoCodeCommand>,
     ) -> Self {
         Self {
-            get_or_create_trial,
+            get_info,
             use_promocode,
         }
     }
