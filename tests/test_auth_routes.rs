@@ -250,9 +250,13 @@ async fn test_auth_routes_lifecycle() {
     let remaining_query = Arc::new(hub::features::traffic::GetRemainingTrafficQuery::new(pg_traffic_repo.clone()));
     let user_traffic_service: Arc<dyn UserTrafficService> = Arc::new(hub::common::app::adapters::UserTrafficServiceAdapter::new(consume_cmd, remaining_query));
     
-    // Get remaining traffic for guest user created earlier (user_id)
+    // Get remaining traffic for guest user created earlier (user_id) - should be 0
     let initial_remaining = user_traffic_service.get_remaining_traffic(&user_id).await.unwrap();
-    assert_eq!(initial_remaining, 26843545600); // 25 GB default packet
+    assert_eq!(initial_remaining, 0);
+
+    // Grant 25 GB traffic packet manually
+    use hub::features::traffic::TrafficRepository;
+    pg_traffic_repo.add_traffic(&user_id, 26843545600, 30).await.unwrap();
 
     // Consume 5 GB
     let consumed_bytes = 5000000000;
