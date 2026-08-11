@@ -43,10 +43,10 @@ datasources:
     uid: postgres
     access: proxy
     url: postgres:5432
-    user: ${POSTGRES_USER:-testuser}
+    user: $POSTGRES_USER
     secureJsonData:
-      password: ${POSTGRES_PASSWORD:-pass}
+      password: $POSTGRES_PASSWORD
     jsonData:
-      database: ${POSTGRES_DB:-testdb}
+      database: $POSTGRES_DB
       sslmode: disable
     version: 1
