@@ -5,23 +5,26 @@ use crate::{
     common::{http::error::AppError, security::jwt::AuthBody},
     features::auth::{
         application::commands::session_tokens::issue_tokens_with_family, AuthRepository,
-        GuestDeviceService,
+        GuestDeviceService, RegistrationTrafficService,
     },
 };
 
 pub struct AuthAsGuestCommand {
     repo: Arc<dyn AuthRepository>,
     guest_device_service: Arc<dyn GuestDeviceService>,
+    registration_traffic_service: Arc<dyn RegistrationTrafficService>,
 }
 
 impl AuthAsGuestCommand {
     pub fn new(
         repo: Arc<dyn AuthRepository>,
         guest_device_service: Arc<dyn GuestDeviceService>,
+        registration_traffic_service: Arc<dyn RegistrationTrafficService>,
     ) -> Self {
         Self {
             repo,
             guest_device_service,
+            registration_traffic_service,
         }
     }
 
@@ -37,6 +40,10 @@ impl AuthAsGuestCommand {
         let user_id = self
             .repo
             .create_user_with_auth_and_device(Some(username), None, Some(device_identity_id))
+            .await?;
+
+        self.registration_traffic_service
+            .grant_initial_traffic(&user_id)
             .await?;
 
         issue_tokens_with_family(&self.repo, user_id, Uuid::new_v4()).await

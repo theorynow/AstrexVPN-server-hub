@@ -65,19 +65,24 @@ pub fn build_app_state(pool: PgPool, config: Config) -> AppState {
         )
     );
 
-    // Auth
-    let auth_repository: Arc<dyn AuthRepository> = Arc::new(AuthRepositoryImpl::new(pool.clone()));
-    let register_user = Arc::new(RegisterUserCommand::new(auth_repository.clone()));
-    let login_user = Arc::new(LoginUserCommand::new(auth_repository.clone()));
-    let auth_as_guest = Arc::new(AuthAsGuestCommand::new(auth_repository.clone(), guest_device_service));
-    let user_exists = Arc::new(UserExistsQuery::new(auth_repository.clone()));
-    let change_password = Arc::new(ChangePasswordCommand::new(auth_repository.clone()));
-    let refresh_session = Arc::new(RefreshSessionCommand::new(auth_repository.clone()));
-
     // Traffic
     let realtime_publisher = Arc::new(crate::common::app::adapters::HttpCentrifugoClient::new(config.clone()));
     let pg_traffic_repo = Arc::new(crate::features::traffic::PgTrafficRepository::new(pool.clone(), realtime_publisher));
     let traffic_repository: Arc<dyn crate::features::traffic::TrafficRepository> = pg_traffic_repo.clone();
+
+    // Cross-feature adapter for Auth -> Traffic
+    let registration_traffic_service: Arc<dyn crate::features::auth::RegistrationTrafficService> = Arc::new(
+        crate::common::app::adapters::RegistrationTrafficServiceAdapter::new(traffic_repository.clone())
+    );
+
+    // Auth
+    let auth_repository: Arc<dyn AuthRepository> = Arc::new(AuthRepositoryImpl::new(pool.clone()));
+    let register_user = Arc::new(RegisterUserCommand::new(auth_repository.clone(), registration_traffic_service.clone()));
+    let login_user = Arc::new(LoginUserCommand::new(auth_repository.clone()));
+    let auth_as_guest = Arc::new(AuthAsGuestCommand::new(auth_repository.clone(), guest_device_service, registration_traffic_service));
+    let user_exists = Arc::new(UserExistsQuery::new(auth_repository.clone()));
+    let change_password = Arc::new(ChangePasswordCommand::new(auth_repository.clone()));
+    let refresh_session = Arc::new(RefreshSessionCommand::new(auth_repository.clone()));
 
     let add_traffic = Arc::new(crate::features::traffic::AddTrafficCommand::new(traffic_repository.clone()));
     let subtract_traffic = Arc::new(crate::features::traffic::SubtractTrafficCommand::new(traffic_repository.clone()));

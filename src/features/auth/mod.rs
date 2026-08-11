@@ -13,6 +13,9 @@ pub use application::commands::{
 pub use application::queries::user_exists::UserExistsQuery;
 pub use domain::{
     model::{LoginUser, RefreshSession, RegisterUser},
-    ports::{auth_repository::AuthRepository, guest_device_service::GuestDeviceService},
+    ports::{
+        auth_repository::AuthRepository, guest_device_service::GuestDeviceService,
+        registration_traffic_service::RegistrationTrafficService,
+    },
 };
 pub use infra::adapters::auth_repository_impl::AuthRepositoryImpl;
