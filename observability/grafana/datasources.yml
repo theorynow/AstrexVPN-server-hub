@@ -37,3 +37,16 @@ datasources:
           url: "$${__value.raw}"
           urlDisplayLabel: View Trace
     version: 1
+
+  - name: PostgreSQL
+    type: postgres
+    uid: postgres
+    access: proxy
+    url: postgres:5432
+    user: ${POSTGRES_USER:-testuser}
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD:-pass}
+    jsonData:
+      database: ${POSTGRES_DB:-testdb}
+      sslmode: disable
+    version: 1
