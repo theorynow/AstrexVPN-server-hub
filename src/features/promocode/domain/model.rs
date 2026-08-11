@@ -6,12 +6,14 @@ use std::fmt;
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PromoCodeRewardType {
     Trial,
+    Add,
 }
 
 impl PromoCodeRewardType {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Trial => "TRIAL",
+            Self::Add => "ADD",
         }
     }
 }
@@ -28,6 +30,7 @@ impl std::str::FromStr for PromoCodeRewardType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
             "TRIAL" => Ok(Self::Trial),
+            "ADD" => Ok(Self::Add),
             _ => Err(format!("Unknown reward type: {}", s)),
         }
     }
