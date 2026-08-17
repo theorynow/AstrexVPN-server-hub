@@ -155,4 +155,42 @@ impl NodeRepository for PgNodeRepository {
 
         Ok(rows.into_iter().map(Into::into).collect())
     }
+
+    async fn upsert_on_connect(
+        &self,
+        id: &str,
+        public_ip: &str,
+        name_en: &str,
+        country_code: &str,
+        country_flag: &str,
+        xray: Option<&XrayConfig>,
+        hysteria: Option<&HysteriaConfig>,
+    ) -> Result<(), AppError> {
+        sqlx::query(
+            r#"
+            INSERT INTO nodes (id, public_ip, name_en, country_code, country_flag, xray, hysteria, status, created_at, modified_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'offline', now(), now())
+            ON CONFLICT (id) DO UPDATE SET
+                public_ip    = EXCLUDED.public_ip,
+                name_en      = EXCLUDED.name_en,
+                country_code = EXCLUDED.country_code,
+                country_flag = EXCLUDED.country_flag,
+                xray         = EXCLUDED.xray,
+                hysteria     = EXCLUDED.hysteria,
+                status       = 'offline',
+                modified_at  = now()
+            "#,
+        )
+        .bind(id)
+        .bind(public_ip)
+        .bind(name_en)
+        .bind(country_code)
+        .bind(country_flag)
+        .bind(xray.map(sqlx::types::Json))
+        .bind(hysteria.map(sqlx::types::Json))
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
 }

@@ -110,7 +110,22 @@ async fn handle_socket(socket: WebSocket, state: crate::common::app::state::AppS
         return;
     }
 
-    // Auth OK
+    // 2. Create the bidirectional transmission channel
+    let (tx, mut rx) = mpsc::channel::<HubMessage>(100);
+
+    // Register the sender and inbound tags inside the WsCommanderImpl adapter
+    state
+        .nodes
+        .node_commander
+        .register_node(node_id.clone(), tx, inbound_tags);
+
+    // Mark online in DB BEFORE sending AuthOk so clients see correct status immediately
+    let repo = state.nodes.node_repository.clone();
+    let _ = repo.update_status(&node_id, NodeStatus::Online).await;
+
+    tracing::info!(node_id = %node_id, public_ip = %public_ip, "Node WebSocket connected successfully");
+
+    // Auth OK — sent after node is fully registered and marked Online
     let auth_ok_msg = HubMessage::AuthOk;
     if let Ok(auth_ok_str) = serde_json::to_string(&auth_ok_msg) {
         if ws_sender
@@ -118,25 +133,12 @@ async fn handle_socket(socket: WebSocket, state: crate::common::app::state::AppS
             .await
             .is_err()
         {
+            // Failed to send — deregister and mark offline
+            state.nodes.node_commander.deregister_node(&node_id);
+            let _ = repo.update_status(&node_id, NodeStatus::Offline).await;
             return;
         }
     }
-
-    // 2. Create the bidirectional transmission channel
-    let (tx, mut rx) = mpsc::channel::<HubMessage>(100);
-
-    // Register the sender and inbound tags inside the WsCommanderImpl adapter
-    // Note: state.nodes.grpc_commander is our Arc<dyn NodeCommander>
-    state
-        .nodes
-        .node_commander
-        .register_node(node_id.clone(), tx, inbound_tags);
-
-    // Mark online in DB immediately
-    let repo = state.nodes.node_repository.clone();
-    let _ = repo.update_status(&node_id, NodeStatus::Online).await;
-
-    tracing::info!(node_id = %node_id, public_ip = %public_ip, "Node WebSocket connected successfully");
 
     let report_traffic_cmd = Arc::new(ReportTrafficCommand::new(
         state.nodes.user_traffic_service.clone(),

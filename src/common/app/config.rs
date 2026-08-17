@@ -127,6 +127,10 @@ pub async fn setup_database(config: &Config) -> Result<PgPool, sqlx::Error> {
         match PgPoolOptions::new()
             .max_connections(config.database_max_connections)
             .min_connections(config.database_min_connections)
+            .acquire_timeout(Duration::from_secs(5))
+            .idle_timeout(Duration::from_secs(600))
+            .max_lifetime(Duration::from_secs(1800))
+            .test_before_acquire(true)
             .connect_with(connect_options)
             .await
         {

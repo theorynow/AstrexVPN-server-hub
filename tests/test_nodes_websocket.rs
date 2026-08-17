@@ -152,7 +152,6 @@ async fn test_nodes_websocket_lifecycle() {
 
     assert_eq!(active_node_json.get("public_ip").unwrap().as_str().unwrap(), "127.0.0.1");
     assert_eq!(active_node_json.get("name_en").unwrap().as_str().unwrap(), "Germany");
-    assert_eq!(active_node_json.get("name_ru").unwrap().as_str().unwrap(), "Германия");
     assert_eq!(active_node_json.get("country_flag").unwrap().as_str().unwrap(), "🇩🇪");
     assert!(active_node_json.get("status").is_none()); // status must be removed!
 

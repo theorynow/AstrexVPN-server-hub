@@ -43,6 +43,10 @@ async fn test_auth_routes_lifecycle() {
     // --- 1. Test /auth/guest (gets auto-generated guest-{uuid} username) ---
     let resp = client
         .post(format!("{}/auth/guest", base_url))
+        .json(&json!({
+            "device_key": format!("test-device-{}", Uuid::new_v4()),
+            "platform": "android"
+        }))
         .send()
         .await
         .unwrap();

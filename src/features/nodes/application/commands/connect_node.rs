@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     common::http::error::AppError,
     features::nodes::domain::{
-        model::{HysteriaConfig, Node, NodeStatus, XrayConfig},
+        model::{HysteriaConfig, XrayConfig},
         ports::node_repository::NodeRepository,
     },
 };
@@ -36,21 +36,18 @@ impl ConnectNodeCommand {
             return Err(AppError::WrongCredentials);
         }
 
-        let existing = self.repo.find_by_id(node_id).await?;
-        let new_node = Node {
-            id: node_id.to_string(),
-            public_ip: public_ip.to_string(),
-            name_en: name_en.to_string(),
-            country_code: country_code.to_string(),
-            country_flag: country_flag.to_string(),
-            xray,
-            hysteria,
-            status: NodeStatus::Offline,
-            last_seen_at: existing.as_ref().and_then(|n| n.last_seen_at),
-            created_at: existing.as_ref().map(|n| n.created_at).unwrap_or_else(chrono::Utc::now),
-            modified_at: chrono::Utc::now(),
-        };
-        self.repo.save(&new_node).await?;
+        self.repo
+            .upsert_on_connect(
+                node_id,
+                public_ip,
+                name_en,
+                country_code,
+                country_flag,
+                xray.as_ref(),
+                hysteria.as_ref(),
+            )
+            .await?;
+
         Ok(())
     }
 }

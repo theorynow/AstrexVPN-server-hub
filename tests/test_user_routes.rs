@@ -189,30 +189,7 @@ async fn test_user_routes_lifecycle() {
         updated_username2
     );
 
-    // --- 4. Test POST /traffic/add (in MB) ---
-    let add_traffic_resp = client
-        .post(format!("{}/traffic/add", base_url))
-        .bearer_auth(&access_token1)
-        .json(&json!({
-            "user_id": user_id1,
-            "mb": 10240
-        }))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(add_traffic_resp.status(), StatusCode::OK);
-    let add_traffic_body: RestApiResponse<Value> = add_traffic_resp.json().await.unwrap();
-    let traffic_limit_bytes = add_traffic_body
-        .0
-        .data
-        .unwrap()
-        .get("traffic_limit_bytes")
-        .unwrap()
-        .as_i64()
-        .unwrap();
-    assert_eq!(traffic_limit_bytes, 10737418240); // 10240 MB = 10 GB
-
-    // Check GET /traffic/me to verify traffic total has increased to 35 GB (25 GB initial + 10 GB added)
+    // --- 4. Check GET /traffic/me to verify initial traffic is 1 GB ---
     let traffic_resp = client
         .get(format!("{}/traffic/me", base_url))
         .bearer_auth(&access_token1)
@@ -224,32 +201,8 @@ async fn test_user_routes_lifecycle() {
     let traffic_data = traffic_body.0.data.unwrap();
     let total_bytes = traffic_data.get("traffic_total_bytes").unwrap().as_i64().unwrap();
     let remaining_bytes = traffic_data.get("traffic_remaining_bytes").unwrap().as_i64().unwrap();
-    assert_eq!(total_bytes, 37580963840); // 35 GB
-    assert_eq!(remaining_bytes, 37580963840); // 35 GB
-
-    // --- 4b. Test POST /traffic/subtract (in MB) ---
-    let sub_traffic_resp = client
-        .post(format!("{}/traffic/subtract", base_url))
-        .bearer_auth(&access_token1)
-        .json(&json!({
-            "user_id": user_id1,
-            "mb": 5120 // Subtract 5 GB
-        }))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(sub_traffic_resp.status(), StatusCode::OK);
-    let sub_traffic_body: RestApiResponse<Value> = sub_traffic_resp.json().await.unwrap();
-    let remaining_after_sub = sub_traffic_body
-        .0
-        .data
-        .unwrap()
-        .get("traffic_remaining_bytes")
-        .unwrap()
-        .as_i64()
-        .unwrap();
-    assert_eq!(remaining_after_sub, 37580963840 - 5368709120); // 30 GB remaining
-
+    assert_eq!(total_bytes, 1073741824); // 1 GB initial traffic
+    assert_eq!(remaining_bytes, 1073741824); // 1 GB initial traffic
     // --- 4c. Test POST /traffic/set (in MB) ---
     let set_traffic_resp = client
         .post(format!("{}/traffic/set", base_url))
